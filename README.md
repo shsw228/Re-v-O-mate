@@ -1,4 +1,7 @@
-# RevOmate
+# Re-v-O-mate
+
+> **Re-** = re-implementation. Rev-O-mate 公式ツールを macOS ネイティブで作り直す。
+> （Swift パッケージ/コマンド名はハイフン不可のため内部識別子は `RevOmate` / `revomate`）
 
 Bit Trade One の左手デバイス **Rev-O-mate (BFROM11BK)** を macOS ネイティブ
 （Swift + IOKit）で設定するためのツール群。公式 OSS
