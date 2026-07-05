@@ -52,6 +52,7 @@ struct ContentView: View {
                 dialFunctions(cfg)
                 dialActionEditor(cfg)
                 buttons(cfg)
+                buttonEditor(cfg)
             }
         }
     }
@@ -64,9 +65,29 @@ struct ContentView: View {
                     .frame(width: 56, height: 56)
                     .overlay(RoundedRectangle(cornerRadius: 8).stroke(.separator))
                 VStack(spacing: 6) {
-                    ledSlider("R", value: $model.ledR)
-                    ledSlider("G", value: $model.ledG)
-                    ledSlider("B", value: $model.ledB)
+                    Picker("", selection: $model.ledUseCustom) {
+                        Text("Custom RGB").tag(true); Text("Preset").tag(false)
+                    }
+                    .pickerStyle(.segmented).labelsHidden()
+                    .onChange(of: model.ledUseCustom) { model.previewLED() }
+
+                    if model.ledUseCustom {
+                        ledSlider("R", value: $model.ledR)
+                        ledSlider("G", value: $model.ledG)
+                        ledSlider("B", value: $model.ledB)
+                    } else {
+                        HStack {
+                            Text("Color").frame(width: 78, alignment: .leading)
+                            Picker("", selection: $model.ledPreset) {
+                                ForEach(0..<AppModel.presetNames.count, id: \.self) {
+                                    Text(AppModel.presetNames[$0]).tag($0)
+                                }
+                            }
+                            .labelsHidden()
+                            .onChange(of: model.ledPreset) { model.previewLED() }
+                            Spacer()
+                        }
+                    }
                     HStack {
                         Text("Brightness").frame(width: 78, alignment: .leading)
                         Picker("", selection: $model.ledBrightness) {
@@ -131,8 +152,8 @@ struct ContentView: View {
                 }
                 .pickerStyle(.segmented)
 
-                keyDraftRow("CW  ↻", draft: $model.cwDraft)
-                keyDraftRow("CCW ↺", draft: $model.ccwDraft)
+                actionRow("CW  ↻", draft: $model.cwDraft)
+                actionRow("CCW ↺", draft: $model.ccwDraft)
 
                 HStack {
                     Text("Dial actions apply after a mode switch / reconnect.")
@@ -146,19 +167,54 @@ struct ContentView: View {
         }
     }
 
-    private func keyDraftRow(_ label: String, draft: Binding<AppModel.KeyDraft>) -> some View {
-        HStack(spacing: 8) {
+    /// A generalized action editor row: type picker + (for keyboard) modifiers & key.
+    private func actionRow(_ label: String, draft: Binding<AppModel.ActionDraft>) -> some View {
+        let d = draft.wrappedValue
+        return HStack(spacing: 8) {
             Text(label).monospaced().frame(width: 64, alignment: .leading)
-            Toggle("Key", isOn: draft.enabled).toggleStyle(.checkbox)
-            Toggle("⌃", isOn: draft.ctrl).toggleStyle(.button).disabled(!draft.enabled.wrappedValue)
-            Toggle("⇧", isOn: draft.shift).toggleStyle(.button).disabled(!draft.enabled.wrappedValue)
-            Toggle("⌥", isOn: draft.alt).toggleStyle(.button).disabled(!draft.enabled.wrappedValue)
-            Toggle("⌘", isOn: draft.cmd).toggleStyle(.button).disabled(!draft.enabled.wrappedValue)
-            Picker("", selection: draft.key) {
-                ForEach(HIDKey.common) { k in Text(k.name).tag(k.usage) }
+            Picker("", selection: draft.typeRaw) {
+                ForEach(AppModel.editableTypes, id: \.self) { t in Text(SetType(t).description).tag(t) }
             }
-            .labelsHidden().frame(width: 110).disabled(!draft.enabled.wrappedValue)
+            .labelsHidden().frame(width: 150)
+            if d.isKeyboard {
+                Toggle("⌃", isOn: draft.ctrl).toggleStyle(.button)
+                Toggle("⇧", isOn: draft.shift).toggleStyle(.button)
+                Toggle("⌥", isOn: draft.alt).toggleStyle(.button)
+                Toggle("⌘", isOn: draft.cmd).toggleStyle(.button)
+                Picker("", selection: draft.key) {
+                    ForEach(HIDKey.common) { k in Text(k.name).tag(k.usage) }
+                }
+                .labelsHidden().frame(width: 100)
+            }
             Spacer()
+        }
+    }
+
+    @ViewBuilder
+    private func buttonEditor(_ cfg: ConfigImage) -> some View {
+        let mode = cfg.modes[model.selectedMode]
+        GroupBox("Edit button action") {
+            VStack(alignment: .leading, spacing: 10) {
+                Picker("Button", selection: $model.selectedButton) {
+                    ForEach(0..<FlashMap.swCount, id: \.self) { Text("SW\($0 + 1)").tag($0) }
+                }
+                .pickerStyle(.segmented)
+
+                let assigned = mode.swExeScriptNo[model.selectedButton] != 0 || mode.swSpFuncNo[model.selectedButton] != 0
+                if assigned {
+                    Text("This button also has a script/special-function assignment (edited elsewhere).")
+                        .font(.caption).foregroundStyle(.secondary)
+                }
+                actionRow("Action", draft: $model.buttonDraft)
+
+                HStack {
+                    Text("Takes effect after a mode switch / reconnect.")
+                        .font(.caption).foregroundStyle(.secondary)
+                    Spacer()
+                    Button("Save button") { model.saveButton() }.disabled(model.isBusy)
+                }
+            }
+            .padding(6)
         }
     }
 

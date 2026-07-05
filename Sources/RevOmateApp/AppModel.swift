@@ -20,7 +20,7 @@ final class AppModel {
     /// Parsed view of `image`.
     var config: ConfigImage?
 
-    var selectedMode = 0 { didSet { loadLEDEdit(); loadFuncEdit() } }
+    var selectedMode = 0 { didSet { loadLEDEdit(); loadFuncEdit(); loadButtonEdit() } }
     var selectedFunc = 0 { didSet { loadFuncEdit() } }
 
     // Editable LED state for the selected mode (RGB as 0..100 duty).
@@ -29,9 +29,9 @@ final class AppModel {
     var ledB = 0.0
     var ledBrightness = 1
 
-    /// Editable keyboard shortcut for one dial rotation (the common dial use-case).
-    struct KeyDraft {
-        var enabled = false
+    /// Editable action supporting None / Keyboard / no-payload types (mouse buttons, media).
+    struct ActionDraft {
+        var typeRaw: UInt8 = 0
         var ctrl = false, shift = false, alt = false, cmd = false
         var key: UInt8 = 0
         var sense: UInt8 = 100
@@ -42,12 +42,17 @@ final class AppModel {
             if alt { m.insert(.leftAlt) }; if cmd { m.insert(.leftGUI) }
             return m
         }
+        var isKeyboard: Bool { typeRaw == 9 }
         var action: ActionRecord {
-            enabled ? .keyboard(modifiers, [key], sense: sense) : .none
+            switch typeRaw {
+            case 0: return .none
+            case 9: return .keyboard(modifiers, [key], sense: sense)
+            default: return ActionRecord(type: SetType(typeRaw), payload: [], sense: sense)
+            }
         }
         init() {}
         init(_ a: ActionRecord) {
-            enabled = a.type.raw == 9
+            typeRaw = a.type.raw
             let m = a.keyModifiers
             ctrl = m.contains(.leftCtrl) || m.contains(.rightCtrl)
             shift = m.contains(.leftShift) || m.contains(.rightShift)
@@ -58,13 +63,29 @@ final class AppModel {
         }
     }
 
-    var cwDraft = KeyDraft()
-    var ccwDraft = KeyDraft()
+    /// SetType values offered in the editor (None / Keyboard / no-payload types).
+    static let editableTypes: [UInt8] = [0, 9, 1, 2, 3, 4, 5, 6, 10, 11, 12, 16, 17, 18, 19, 20]
+
+    var cwDraft = ActionDraft()
+    var ccwDraft = ActionDraft()
+
+    // Buttons (direct SW action record)
+    var selectedButton = 0 { didSet { loadButtonEdit() } }
+    var buttonDraft = ActionDraft()
+
+    // LED preset vs custom
+    var ledUseCustom = true
+    var ledPreset = 0   // 0..8
 
     private var device: RevOmateDevice?
 
     var isConnected: Bool { if case .connected = status { return true } else { return false } }
-    var ledSwatch: Color { Color(red: ledR / 100, green: ledG / 100, blue: ledB / 100) }
+    var ledSwatch: Color {
+        let rgb: (Double, Double, Double)
+        if ledUseCustom { rgb = (ledR, ledG, ledB) }
+        else { let p = Self.presetRGB[min(ledPreset, 8)]; rgb = (Double(p.0), Double(p.1), Double(p.2)) }
+        return Color(red: rgb.0 / 100, green: rgb.1 / 100, blue: rgb.2 / 100)
+    }
 
     private func append(_ s: String) { log.append(s) }
 
@@ -86,6 +107,7 @@ final class AppModel {
                 self.status = .connected
                 self.loadLEDEdit()
                 self.loadFuncEdit()
+                self.loadButtonEdit()
                 self.append("Connected — FW \(v).")
             } catch {
                 self.status = .error("\(error)")
@@ -94,19 +116,36 @@ final class AppModel {
         }
     }
 
+    /// Approximate duty RGB for each of the 9 preset colors (for live preview only;
+    /// persistence stores the preset index so the firmware renders the exact color).
+    static let presetRGB: [(UInt8, UInt8, UInt8)] = [
+        (0, 0, 0), (100, 100, 100), (100, 0, 0), (100, 45, 0), (100, 100, 0),
+        (0, 100, 100), (0, 100, 0), (0, 0, 100), (100, 0, 100),
+    ]
+    static let presetNames = ["Off", "White", "Red", "Orange", "Yellow", "Turquoise", "Green", "Blue", "Purple"]
+
     private func loadLEDEdit() {
         guard let cfg = config, selectedMode < cfg.modes.count else { return }
         let m = cfg.modes[selectedMode]
         ledR = Double(m.ledRGB.0); ledG = Double(m.ledRGB.1); ledB = Double(m.ledRGB.2)
         ledBrightness = Int(m.ledBrightness)
+        ledUseCustom = m.ledColorFlag == 1
+        ledPreset = Int(min(m.ledColorNo, 8))
+    }
+
+    private func loadButtonEdit() {
+        guard let cfg = config else { return }
+        let idx = selectedMode * FlashMap.swCount + selectedButton
+        guard idx < cfg.swFunctions.count else { return }
+        buttonDraft = ActionDraft(cfg.swFunctions[idx].action)
     }
 
     private func loadFuncEdit() {
         guard let cfg = config else { return }
         let idx = selectedMode * FlashMap.functionsPerMode + selectedFunc
         guard idx < cfg.functions.count else { return }
-        cwDraft = KeyDraft(cfg.functions[idx].cw)
-        ccwDraft = KeyDraft(cfg.functions[idx].ccw)
+        cwDraft = ActionDraft(cfg.functions[idx].cw)
+        ccwDraft = ActionDraft(cfg.functions[idx].ccw)
     }
 
     var selectedFuncName: String {
@@ -145,7 +184,10 @@ final class AppModel {
     private var ledDesired: (UInt8, UInt8, UInt8, UInt8)?
 
     func previewLED() {
-        ledDesired = (UInt8(ledR), UInt8(ledG), UInt8(ledB), UInt8(ledBrightness))
+        let rgb: (UInt8, UInt8, UInt8) = ledUseCustom
+            ? (UInt8(ledR), UInt8(ledG), UInt8(ledB))
+            : Self.presetRGB[min(ledPreset, 8)]
+        ledDesired = (rgb.0, rgb.1, rgb.2, UInt8(ledBrightness))
         guard !ledSending, let dev = device else { return }
         ledSending = true
         Task {
@@ -162,8 +204,12 @@ final class AppModel {
     func saveLED() {
         guard let dev = device, let img = image, !isBusy else { return }
         var editor = ConfigEditor(img)
-        editor.setModeLED(mode: selectedMode, colorNo: 0, useCustomRGB: true,
-                          rgb: (UInt8(ledR), UInt8(ledG), UInt8(ledB)), brightness: UInt8(ledBrightness))
+        if ledUseCustom {
+            editor.setModeLED(mode: selectedMode, colorNo: 0, useCustomRGB: true,
+                              rgb: (UInt8(ledR), UInt8(ledG), UInt8(ledB)), brightness: UInt8(ledBrightness))
+        } else {
+            editor.setModeLEDPreset(mode: selectedMode, colorNo: UInt8(ledPreset), brightness: UInt8(ledBrightness))
+        }
         let newImage = editor.image
         isBusy = true
         append("Saving Mode \(selectedMode) LED to flash…")
@@ -173,6 +219,27 @@ final class AppModel {
                 self.image = newImage
                 self.config = ConfigImage(newImage)
                 self.append("✓ Saved — \(restored.count) sector(s) written.")
+            } catch {
+                self.append("✗ Save failed: \(error)")
+            }
+            self.isBusy = false
+        }
+    }
+
+    /// Persist the edited direct action for the selected button (SW function record).
+    func saveButton() {
+        guard let dev = device, let img = image, !isBusy else { return }
+        var editor = ConfigEditor(img)
+        editor.setButtonAction(mode: selectedMode, sw: selectedButton, buttonDraft.action)
+        let newImage = editor.image
+        isBusy = true
+        append("Saving Mode \(selectedMode) SW\(selectedButton + 1) action…")
+        Task {
+            do {
+                let restored = try await Task.detached { try dev.restoreImage(newImage, baseline: img) }.value
+                self.image = newImage
+                self.config = ConfigImage(newImage)
+                self.append("✓ Saved — \(restored.count) sector(s). Takes effect after mode switch / reconnect.")
             } catch {
                 self.append("✗ Save failed: \(error)")
             }
