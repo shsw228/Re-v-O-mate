@@ -158,6 +158,29 @@ do {
         }
         print("Done — \(restored.count) sector(s) rewritten\(restored.isEmpty ? " (device already matched)" : "")")
 
+    case "roundtrip":
+        // roundtrip <dump>  — offline check that ActionRecord parse→encode is byte-exact.
+        guard args.count >= 2 else { err("usage: revomate roundtrip <dump>"); exit(2) }
+        let d = [UInt8](try Data(contentsOf: URL(fileURLWithPath: args[1])))
+        guard d.count == FlashMap.totalSize else { err("not a 2 MiB image"); exit(2) }
+        var checked = 0, bad = 0
+        func check(_ addr: Int, _ label: String) {
+            let orig = Array(d[addr..<addr + 8])
+            let re = ActionRecord(orig[...]).encoded
+            checked += 1
+            if re != orig { bad += 1; print("  MISMATCH \(label) @0x\(String(addr, radix: 16)): \(orig.hexString) -> \(re.hexString)") }
+        }
+        for m in 0..<FlashMap.modeCount {
+            for f in 0..<FlashMap.functionsPerMode {
+                let base = Int(FlashMap.functionSetting) + (m * FlashMap.functionsPerMode + f) * Int(FlashMap.functionStride)
+                check(base, "m\(m)f\(f).CW"); check(base + 8, "m\(m)f\(f).CCW")
+            }
+            for s in 0..<FlashMap.swCount {
+                check(Int(FlashMap.swFunction) + (m * FlashMap.swCount + s) * Int(FlashMap.swStride), "m\(m)SW\(s + 1)")
+            }
+        }
+        print("roundtrip: \(checked) records checked, \(bad) mismatch(es) — \(bad == 0 ? "OK" : "FAIL")")
+
     case "led":
         // led <r> <g> <b> [brightness]  — LIVE LED set (cmd 0x63), instant, not persisted.
         guard args.count >= 4, let r = UInt8(args[1]), let g = UInt8(args[2]), let b = UInt8(args[3]) else {

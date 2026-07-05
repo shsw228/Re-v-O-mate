@@ -50,6 +50,7 @@ struct ContentView: View {
             VStack(alignment: .leading, spacing: 16) {
                 ledEditor
                 dialFunctions(cfg)
+                dialActionEditor(cfg)
                 buttons(cfg)
             }
         }
@@ -114,6 +115,50 @@ struct ContentView: View {
             }
             .padding(6)
             .frame(maxWidth: .infinity, alignment: .leading)
+        }
+    }
+
+    @ViewBuilder
+    private func dialActionEditor(_ cfg: ConfigImage) -> some View {
+        GroupBox("Edit dial action") {
+            VStack(alignment: .leading, spacing: 10) {
+                Picker("Function", selection: $model.selectedFunc) {
+                    ForEach(0..<FlashMap.functionsPerMode, id: \.self) { f in
+                        let idx = model.selectedMode * FlashMap.functionsPerMode + f
+                        let nm = cfg.functionNames[idx]
+                        Text(nm.isEmpty ? "Function \(f)" : nm).tag(f)
+                    }
+                }
+                .pickerStyle(.segmented)
+
+                keyDraftRow("CW  ↻", draft: $model.cwDraft)
+                keyDraftRow("CCW ↺", draft: $model.ccwDraft)
+
+                HStack {
+                    Text("Dial actions apply after a mode switch / reconnect.")
+                        .font(.caption).foregroundStyle(.secondary)
+                    Spacer()
+                    Button("Save dial function") { model.saveDialFunction() }
+                        .disabled(model.isBusy)
+                }
+            }
+            .padding(6)
+        }
+    }
+
+    private func keyDraftRow(_ label: String, draft: Binding<AppModel.KeyDraft>) -> some View {
+        HStack(spacing: 8) {
+            Text(label).monospaced().frame(width: 64, alignment: .leading)
+            Toggle("Key", isOn: draft.enabled).toggleStyle(.checkbox)
+            Toggle("⌃", isOn: draft.ctrl).toggleStyle(.button).disabled(!draft.enabled.wrappedValue)
+            Toggle("⇧", isOn: draft.shift).toggleStyle(.button).disabled(!draft.enabled.wrappedValue)
+            Toggle("⌥", isOn: draft.alt).toggleStyle(.button).disabled(!draft.enabled.wrappedValue)
+            Toggle("⌘", isOn: draft.cmd).toggleStyle(.button).disabled(!draft.enabled.wrappedValue)
+            Picker("", selection: draft.key) {
+                ForEach(HIDKey.common) { k in Text(k.name).tag(k.usage) }
+            }
+            .labelsHidden().frame(width: 110).disabled(!draft.enabled.wrappedValue)
+            Spacer()
         }
     }
 

@@ -12,6 +12,13 @@ public struct ConfigEditor: Sendable {
     }
 
     private mutating func put(_ addr: UInt32, _ byte: UInt8) { image[Int(addr)] = byte }
+    private mutating func put(_ addr: UInt32, _ bytes: [UInt8]) {
+        for (i, b) in bytes.enumerated() { image[Int(addr) + i] = b }
+    }
+
+    private func swAddr(mode: Int, sw s: Int) -> UInt32 {
+        FlashMap.swFunction + FlashMap.swStride * UInt32(mode * FlashMap.swCount + s)
+    }
 
     private func baseModeAddr(_ mode: Int) -> UInt32 {
         FlashMap.baseModeInfo + FlashMap.baseModeStride * UInt32(mode)
@@ -34,6 +41,26 @@ public struct ConfigEditor: Sendable {
     /// Which of the 4 dial functions this mode uses by default (0..3).
     public mutating func setEncoderDefault(mode: Int, funcNo: UInt8) {
         put(baseModeAddr(mode) + 22, funcNo)
+    }
+
+    /// Use a preset color (0..8) for the mode LED instead of custom RGB.
+    public mutating func setModeLEDPreset(mode: Int, colorNo: UInt8, brightness: UInt8) {
+        let b = baseModeAddr(mode)
+        put(b + 23, colorNo)
+        put(b + 24, 0)          // color_flag = 0 => use preset
+        put(b + 28, brightness)
+    }
+
+    // MARK: Action records (dial CW/CCW, buttons) — 8-byte records
+
+    public mutating func setDialAction(mode: Int, func f: Int, cw: ActionRecord? = nil, ccw: ActionRecord? = nil) {
+        let base = functionAddr(mode: mode, func: f)
+        if let cw { put(base + 0, cw.encoded) }
+        if let ccw { put(base + 8, ccw.encoded) }
+    }
+
+    public mutating func setButtonAction(mode: Int, sw s: Int, _ action: ActionRecord) {
+        put(swAddr(mode: mode, sw: s), action.encoded)
     }
 
     // MARK: Dial sensitivity (encoder), 1..100 per CW/CCW

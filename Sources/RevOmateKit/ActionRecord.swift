@@ -99,7 +99,30 @@ public struct ActionRecord: Sendable {
         sense = b[7]
     }
 
+    public init(type: SetType, payload: [UInt8], sense: UInt8) {
+        self.type = type
+        var p = payload
+        while p.count < 6 { p.append(0) }
+        self.payload = Array(p.prefix(6))
+        self.sense = sense
+    }
+
+    /// The canonical 8-byte on-flash form: [type][payload×6][sense].
+    public var encoded: [UInt8] { [type.raw] + payload + [sense] }
+
     public var isEmpty: Bool { type.raw == 0 }
+
+    public static let none = ActionRecord(type: SetType(0), payload: [], sense: 100)
+
+    /// Build a keyboard action (set type 9): modifiers + up to 3 keys.
+    public static func keyboard(_ modifiers: KeyModifiers, _ keys: [UInt8], sense: UInt8 = 100) -> ActionRecord {
+        var k = keys; while k.count < 3 { k.append(0) }
+        return ActionRecord(type: SetType(9), payload: [modifiers.rawValue, k[0], k[1], k[2], 0, 0], sense: sense)
+    }
+
+    // Typed accessors for the keyboard payload.
+    public var keyModifiers: KeyModifiers { KeyModifiers(rawValue: payload[0]) }
+    public var keys: [UInt8] { Array(payload[1...3]) }
 
     /// Human-readable one-liner (best-effort; keycode names are a small subset).
     public func describe() -> String {
@@ -120,8 +143,29 @@ public struct ActionRecord: Sendable {
     }
 }
 
+/// A named HID key for pickers.
+public struct NamedKey: Identifiable, Sendable, Hashable {
+    public let name: String
+    public let usage: UInt8
+    public var id: UInt8 { usage }
+    public init(_ name: String, _ usage: UInt8) { self.name = name; self.usage = usage }
+}
+
 /// Minimal HID usage-id -> label map for common keys (extend as needed).
 public enum HIDKey {
+    /// A curated list for UI pickers (letters, digits, function keys, common punctuation, arrows).
+    public static let common: [NamedKey] = {
+        var out: [NamedKey] = [NamedKey("(none)", 0)]
+        for c in 0x04...0x1D { out.append(NamedKey(name(UInt8(c)), UInt8(c))) }   // a..z
+        for c in 0x1E...0x27 { out.append(NamedKey(name(UInt8(c)), UInt8(c))) }   // 1..0
+        for c in 0x3A...0x45 { out.append(NamedKey(name(UInt8(c)), UInt8(c))) }   // F1..F12
+        for c: UInt8 in [0x28, 0x29, 0x2B, 0x2C, 0x2D, 0x2E, 0x2F, 0x30, 0x31, 0x33, 0x34, 0x36, 0x37, 0x38,
+                         0x4F, 0x50, 0x51, 0x52] {
+            out.append(NamedKey(name(c), c))
+        }
+        return out
+    }()
+
     public static func name(_ code: UInt8) -> String {
         switch code {
         case 0x04...0x1D: return String(UnicodeScalar(0x61 + (code - 0x04)))          // a..z

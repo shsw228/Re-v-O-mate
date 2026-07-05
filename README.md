@@ -71,7 +71,7 @@ editor) is still to come.
 - [x] M1 — full flash dump (backup)
 - [x] M2 — parsers for each settings region (Base / Function / Encoder / SW / Script), validated against a real dump; `config` command
 - [x] M3 — write path (sector erase → page-aware write → read-back verify); `verify` / `restore-sector` / `restore`, validated on hardware
-- [~] M4 — configuration UI (SwiftUI): LED editor with **live preview (0x63) + persist (flash)**, mode picker, dial/button viewer. Action-record editing still TODO.
+- [~] M4 — configuration UI (SwiftUI): LED editor with **live preview (0x63) + persist (flash)**, mode picker, dial/button viewer, and **dial CW/CCW keyboard-shortcut editing** (8-byte action records; serializer round-trip-validated). Non-keyboard action types & button editing still TODO.
 - [ ] M5 — macro (script) editor
 
 ### Reflection model (important)
