@@ -57,6 +57,37 @@ do {
             i += 16
         }
 
+    case "config":
+        // config [dumpFile]  — parse a flash image into a readable config summary.
+        // With no file it does a live full read from the device.
+        let image: [UInt8]
+        if args.count >= 2 {
+            image = [UInt8](try Data(contentsOf: URL(fileURLWithPath: args[1])))
+        } else {
+            let dev = try RevOmateDevice(); defer { dev.close() }
+            err("Reading flash from device…")
+            image = try dev.dumpAll()
+        }
+        let cfg = ConfigImage(image)
+        print("Base: mode=\(cfg.base.mode) ledOffTime=\(cfg.base.ledOffTimeSec)s encoderTypematic=\(cfg.base.encoderTypematic)")
+        print("Script header: recordCount=\(cfg.scriptHeader.recordCount) totalSize=\(cfg.scriptHeader.totalSize)")
+        for m in 0..<FlashMap.modeCount {
+            let mode = cfg.modes[m]
+            print("\n── Mode \(m) ── encoderFunc=\(mode.encoderFuncNo) LED(color=\(mode.ledColorNo) flag=\(mode.ledColorFlag) rgb=\(mode.ledRGB.0),\(mode.ledRGB.1),\(mode.ledRGB.2) bright=\(mode.ledBrightness))")
+            print("  Dial functions:")
+            for f in 0..<FlashMap.functionsPerMode {
+                let idx = m * FlashMap.functionsPerMode + f
+                let fn = cfg.functions[idx]
+                let name = cfg.functionNames[idx]
+                print("    [\(f)] \"\(name)\"  CW: \(fn.cw.describe())   CCW: \(fn.ccw.describe())")
+            }
+            let assigned = (0..<FlashMap.swCount).compactMap { s -> String? in
+                let sw = cfg.swFunctions[m * FlashMap.swCount + s]
+                return sw.isEmpty ? nil : "SW\(s + 1)=\(sw.action.describe())"
+            }
+            print("  Buttons: \(assigned.isEmpty ? "(none assigned)" : assigned.joined(separator: ", "))")
+        }
+
     case "dump":
         guard args.count >= 2 else { err("usage: revomate dump <path>"); exit(2) }
         let path = args[1]
@@ -78,9 +109,11 @@ do {
         revomate — Rev-O-mate CLI (connectivity spike)
 
         commands:
-          version        read firmware version (cmd 0x56)
-          probe          version + base/script headers + first scripts
-          dump <path>    read entire 2 MiB flash to a .bin file (backup)
+          version         read firmware version (cmd 0x56)
+          probe           version + base/script headers + first scripts
+          peek <a> [len]  raw hex/ascii dump of a flash range
+          config [file]   parse flash (device, or a dump file) into a readable summary
+          dump <path>     read entire 2 MiB flash to a .bin file (backup)
         """)
     }
 } catch {
