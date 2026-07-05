@@ -61,8 +61,15 @@ public struct ScriptInfo: Sendable {
         address = u32le(bytes, 0)
         size = u32le(bytes, 4)
         mode = Mode(rawValue: bytes[8])
-        let nameLen = Int(bytes[9])
+        let nameLen = bytes[9] == 0xFF ? 0 : Int(bytes[9])   // UTF-16LE, byte length
         let end = min(10 + nameLen, bytes.count)
-        name = String(decoding: bytes[10..<end], as: UTF8.self)
+        var scalars = [UInt16]()
+        var i = 10
+        while i + 1 < end { scalars.append(UInt16(bytes[i]) | (UInt16(bytes[i + 1]) << 8)); i += 2 }
+        name = String(decoding: scalars, as: UTF16.self)
     }
+
+    /// A slot is "used" iff it points at real data. The info table is a
+    /// host-rebuildable index; a raw device dump can have every slot empty.
+    public var isEmpty: Bool { size == 0 }
 }

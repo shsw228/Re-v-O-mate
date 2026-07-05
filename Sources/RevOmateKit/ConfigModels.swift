@@ -90,6 +90,23 @@ public struct BaseModeInfo: Sendable {
         ledRGB = (b[25], b[26], b[27])
         ledBrightness = b[28]
     }
+
+    /// Per-button (1-based SW) assignment: a script number and/or special-function number
+    /// (0 = unassigned). This is how buttons get behavior in the base-mode info — distinct
+    /// from a direct action stored in the SW function record.
+    public struct ButtonAssignment: Sendable {
+        public let sw: Int          // 1-based
+        public let scriptNo: UInt8  // 0 = none
+        public let specialFuncNo: UInt8
+    }
+
+    public var buttonAssignments: [ButtonAssignment] {
+        (0..<swExeScriptNo.count).compactMap { i in
+            let s = swExeScriptNo[i], sp = swSpFuncNo[i]
+            guard s != 0 || sp != 0 else { return nil }
+            return ButtonAssignment(sw: i + 1, scriptNo: s, specialFuncNo: sp)
+        }
+    }
 }
 
 // MARK: - Whole-image parser (offline, from a 2 MiB dump)
@@ -104,6 +121,7 @@ public struct ConfigImage: Sendable {
     public var encoderScripts: [EncoderScriptInfo]  // 3
     public var swFunctions: [SwFuncRecord]      // 33 = 3 modes x 11
     public var scriptHeader: ScriptHeader
+    public var scripts: [ScriptInfo]            // non-empty entries only (size > 0)
 
     public init(_ d: [UInt8]) {
         precondition(d.count >= 0x030000, "image too small")
@@ -135,5 +153,13 @@ public struct ConfigImage: Sendable {
         }
 
         scriptHeader = ScriptHeader(Array(slice(FlashMap.scriptHeader, 8)))
+
+        // Script info table: keep only populated slots (size > 0). On a raw device
+        // dump this can be empty even when the header + packed data at 0x020000 are valid.
+        scripts = (1...FlashMap.scriptMax).compactMap { n in
+            let a = Int(FlashMap.scriptInfoAddress(number: n))
+            let info = ScriptInfo(Array(d[a..<(a + 0x110)]))
+            return info.isEmpty ? nil : info
+        }
     }
 }

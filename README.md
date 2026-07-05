@@ -41,6 +41,8 @@ With the device connected:
 swift run revomate version           # firmware version (0x56)
 swift run revomate probe             # base/script headers + first scripts
 swift run revomate peek 0x020000 64  # raw hex/ascii dump of a flash range
+swift run revomate config            # readable config summary (dial/buttons/LED/scripts)
+swift run revomate config dump.bin   #   ...parsed from a saved dump instead
 swift run revomate dump backup.bin   # back up the whole 2 MiB flash
 ```
 
@@ -61,7 +63,7 @@ editor) is still to come.
 
 - [x] M0 — connectivity (open vendor interface + `0x56`)
 - [x] M1 — full flash dump (backup)
-- [ ] M2 — parsers for each settings region (Base / Function / Encoder / SW / Script)
+- [x] M2 — parsers for each settings region (Base / Function / Encoder / SW / Script), validated against a real dump; `config` command
 - [ ] M3 — write path (sector erase → write → read-back verify)
 - [ ] M4 — configuration UI
 - [ ] M5 — macro (script) editor

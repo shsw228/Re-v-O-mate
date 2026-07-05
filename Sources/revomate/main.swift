@@ -79,13 +79,40 @@ do {
                 let idx = m * FlashMap.functionsPerMode + f
                 let fn = cfg.functions[idx]
                 let name = cfg.functionNames[idx]
-                print("    [\(f)] \"\(name)\"  CW: \(fn.cw.describe())   CCW: \(fn.ccw.describe())")
+                let marker = f == Int(mode.encoderFuncNo) ? "●" : " "
+                print("   \(marker)[\(f)] \"\(name)\"  CW: \(fn.cw.describe()) [sense \(fn.cw.sense)]   CCW: \(fn.ccw.describe()) [sense \(fn.ccw.sense)]")
             }
-            let assigned = (0..<FlashMap.swCount).compactMap { s -> String? in
-                let sw = cfg.swFunctions[m * FlashMap.swCount + s]
-                return sw.isEmpty ? nil : "SW\(s + 1)=\(sw.action.describe())"
+            // Buttons get behaviour from base-mode assignments (script/special func)
+            // and/or a direct action in the SW function record.
+            print("  Buttons:")
+            var anyButton = false
+            for s in 0..<FlashMap.swCount {
+                var parts: [String] = []
+                let script = mode.swExeScriptNo[s], sp = mode.swSpFuncNo[s]
+                if script != 0 { parts.append("script #\(script)") }
+                if sp != 0 { parts.append("spFunc \(sp)") }
+                let direct = cfg.swFunctions[m * FlashMap.swCount + s]
+                if !direct.isEmpty { parts.append("action \(direct.action.describe())") }
+                if !parts.isEmpty { anyButton = true; print("    SW\(s + 1): \(parts.joined(separator: ", "))") }
             }
-            print("  Buttons: \(assigned.isEmpty ? "(none assigned)" : assigned.joined(separator: ", "))")
+            if !anyButton { print("    (none assigned)") }
+        }
+
+        // Script table (populated slots only; may be empty on a raw dump).
+        print("\n── Scripts ──")
+        if cfg.scripts.isEmpty {
+            print("  (info table empty; \(cfg.scriptHeader.recordCount) record(s), \(cfg.scriptHeader.totalSize) B packed @0x020000)")
+        } else {
+            for s in cfg.scripts {
+                let a = Int(s.address), n = Int(s.size)
+                let raw = (a + n <= image.count) ? Array(image[a..<(a + n)]) : []
+                let (cmds, rest) = ScriptDecoder.decode(raw)
+                let body = cmds.map { c in
+                    c.data.isEmpty ? "\(c.opcode)" : "\(c.opcode)(\(c.data.hexString))"
+                }.joined(separator: " → ")
+                let tail = rest > 0 ? " [+\(rest)B undecoded]" : ""
+                print("  mode=\(s.mode.map { "\($0)" } ?? "?") size=\(s.size) @0x\(String(s.address, radix: 16)) \"\(s.name)\": \(body)\(tail)")
+            }
         }
 
     case "dump":
