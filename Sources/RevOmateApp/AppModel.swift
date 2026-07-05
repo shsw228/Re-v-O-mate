@@ -14,6 +14,7 @@ final class AppModel {
     var version: String?
     var log: [String] = []
     var isBusy = false
+    var progress: Double?          // 0..1 during long reads
 
     /// The last full image read from the device (baseline for diffed writes).
     private var image: [UInt8]?
@@ -28,14 +29,16 @@ final class AppModel {
     var ledG = 0.0
     var ledB = 0.0
     var ledBrightness = 1
+    var ledUseCustom = true
+    var ledPreset = 0   // 0..8
 
-    /// Editable action supporting None / Keyboard / no-payload types (mouse buttons, media).
+    /// Editable action supporting None / Keyboard / mouse move+scroll / no-payload types.
     struct ActionDraft {
         var typeRaw: UInt8 = 0
         var ctrl = false, shift = false, alt = false, cmd = false
         var key: UInt8 = 0
         var sense: UInt8 = 100
-        var moveX = 0, moveY = 0, wheel = 0    // mouse move / scroll payload (signed)
+        var moveX = 0, moveY = 0, wheel = 0
 
         var modifiers: KeyModifiers {
             var m: KeyModifiers = []
@@ -75,21 +78,15 @@ final class AppModel {
         }
     }
 
-    /// All SetType values (0..44) offered in the editor.
     static let editableTypes: [UInt8] = Array(0...44)
 
     var cwDraft = ActionDraft()
     var ccwDraft = ActionDraft()
 
-    // Buttons (direct SW action record + script/special-func assignment)
     var selectedButton = 0 { didSet { loadButtonEdit() } }
     var buttonDraft = ActionDraft()
-    var buttonScriptNo = 0    // 0 = none
-    var buttonSpFuncNo = 0    // 0 = none
-
-    // LED preset vs custom
-    var ledUseCustom = true
-    var ledPreset = 0   // 0..8
+    var buttonScriptNo = 0
+    var buttonSpFuncNo = 0
 
     // Macro (script) editing
     var selectedScriptNumber: Int?
@@ -97,9 +94,19 @@ final class AppModel {
     var scriptMode: ScriptInfo.Mode = .oneShot
     var scriptName = ""
 
+    /// All device I/O runs here — a dedicated serial queue, NOT the Swift concurrency
+    /// cooperative pool (blocking IOKit calls would starve it).
+    private let io = DispatchQueue(label: "com.revomate.app.io")
     private var device: RevOmateDevice?
 
     var isConnected: Bool { if case .connected = status { return true } else { return false } }
+
+    static let presetRGB: [(UInt8, UInt8, UInt8)] = [
+        (0, 0, 0), (100, 100, 100), (100, 0, 0), (100, 45, 0), (100, 100, 0),
+        (0, 100, 100), (0, 100, 0), (0, 0, 100), (100, 0, 100),
+    ]
+    static let presetNames = ["Off", "White", "Red", "Orange", "Yellow", "Turquoise", "Green", "Blue", "Purple"]
+
     var ledSwatch: Color {
         let rgb: (Double, Double, Double)
         if ledUseCustom { rgb = (ledR, ledG, ledB) }
@@ -114,36 +121,36 @@ final class AppModel {
     func connect() {
         guard status != .connecting else { return }
         status = .connecting
+        progress = 0
         append("Opening device and reading configuration…")
-        Task {
+        io.async { [weak self] in
             do {
-                let dev = try await Task.detached { try RevOmateDevice() }.value
-                let v = try await Task.detached { try dev.version() }.value
-                let img = try await Task.detached { try dev.dumpAll() }.value
-                self.device = dev
-                self.version = v
-                self.image = img
-                self.config = ConfigImage(img)
-                self.status = .connected
-                self.loadLEDEdit()
-                self.loadFuncEdit()
-                self.loadButtonEdit()
-                self.selectScript(self.scripts.first?.number)
-                self.append("Connected — FW \(v).")
+                let dev = try RevOmateDevice()
+                let v = try dev.version()
+                var lastPct = -1
+                let img = try dev.dumpAll { done, total in
+                    let pct = done * 100 / total
+                    if pct != lastPct && pct % 5 == 0 {
+                        lastPct = pct
+                        DispatchQueue.main.async { self?.progress = Double(pct) / 100 }
+                    }
+                }
+                let cfg = ConfigImage(img)
+                DispatchQueue.main.async {
+                    guard let self else { return }
+                    self.device = dev; self.version = v; self.image = img; self.config = cfg
+                    self.progress = nil; self.status = .connected
+                    self.loadLEDEdit(); self.loadFuncEdit(); self.loadButtonEdit()
+                    self.selectScript(self.scripts.first?.number)
+                    self.append("Connected — FW \(v).")
+                }
             } catch {
-                self.status = .error("\(error)")
-                self.append("✗ \(error)")
+                DispatchQueue.main.async {
+                    self?.progress = nil; self?.status = .error("\(error)"); self?.append("✗ \(error)")
+                }
             }
         }
     }
-
-    /// Approximate duty RGB for each of the 9 preset colors (for live preview only;
-    /// persistence stores the preset index so the firmware renders the exact color).
-    static let presetRGB: [(UInt8, UInt8, UInt8)] = [
-        (0, 0, 0), (100, 100, 100), (100, 0, 0), (100, 45, 0), (100, 100, 0),
-        (0, 100, 100), (0, 100, 0), (0, 0, 100), (100, 0, 100),
-    ]
-    static let presetNames = ["Off", "White", "Red", "Orange", "Yellow", "Turquoise", "Green", "Blue", "Purple"]
 
     private func loadLEDEdit() {
         guard let cfg = config, selectedMode < cfg.modes.count else { return }
@@ -152,6 +159,14 @@ final class AppModel {
         ledBrightness = Int(m.ledBrightness)
         ledUseCustom = m.ledColorFlag == 1
         ledPreset = Int(min(m.ledColorNo, 8))
+    }
+
+    private func loadFuncEdit() {
+        guard let cfg = config else { return }
+        let idx = selectedMode * FlashMap.functionsPerMode + selectedFunc
+        guard idx < cfg.functions.count else { return }
+        cwDraft = ActionDraft(cfg.functions[idx].cw)
+        ccwDraft = ActionDraft(cfg.functions[idx].ccw)
     }
 
     private func loadButtonEdit() {
@@ -163,69 +178,58 @@ final class AppModel {
         buttonSpFuncNo = Int(cfg.modes[selectedMode].swSpFuncNo[selectedButton])
     }
 
-    private func loadFuncEdit() {
-        guard let cfg = config else { return }
-        let idx = selectedMode * FlashMap.functionsPerMode + selectedFunc
-        guard idx < cfg.functions.count else { return }
-        cwDraft = ActionDraft(cfg.functions[idx].cw)
-        ccwDraft = ActionDraft(cfg.functions[idx].ccw)
-    }
+    // MARK: Shared write-back (persist changed sectors + reload)
 
-    var selectedFuncName: String {
-        guard let cfg = config else { return "" }
-        let idx = selectedMode * FlashMap.functionsPerMode + selectedFunc
-        return idx < cfg.functionNames.count ? cfg.functionNames[idx] : ""
-    }
-
-    /// Persist the edited CW/CCW keyboard actions for the selected dial function.
-    /// NOTE: dial/button changes take effect after a mode switch or reconnect
-    /// (firmware runs off a RAM mirror; only LED has a live command).
-    func saveDialFunction() {
-        guard let dev = device, let img = image, !isBusy else { return }
-        var editor = ConfigEditor(img)
-        editor.setDialAction(mode: selectedMode, func: selectedFunc,
-                             cw: cwDraft.action, ccw: ccwDraft.action)
-        let newImage = editor.image
+    private func writeBack(_ newImage: [UInt8], _ label: String, reconnectHint: Bool = false) {
+        guard let dev = device, let baseline = image, !isBusy else { return }
         isBusy = true
-        append("Saving Mode \(selectedMode) dial function \(selectedFunc)…")
-        Task {
+        append(label)
+        io.async { [weak self] in
             do {
-                let restored = try await Task.detached { try dev.restoreImage(newImage, baseline: img) }.value
-                self.image = newImage
-                self.config = ConfigImage(newImage)
-                self.append("✓ Saved — \(restored.count) sector(s). Takes effect after mode switch / reconnect.")
+                let restored = try dev.restoreImage(newImage, baseline: baseline)
+                DispatchQueue.main.async {
+                    guard let self else { return }
+                    self.image = newImage
+                    self.config = ConfigImage(newImage)
+                    self.append("✓ Saved — \(restored.count) sector(s)." + (reconnectHint ? " Reconnect to apply." : ""))
+                    self.isBusy = false
+                }
             } catch {
-                self.append("✗ Save failed: \(error)")
+                DispatchQueue.main.async { self?.append("✗ Save failed: \(error)"); self?.isBusy = false }
             }
-            self.isBusy = false
         }
     }
 
-    // MARK: Live LED preview (0x63) — coalesced
+    // MARK: Live LED preview (0x63) — coalesced on the io queue
 
-    private var ledSending = false
-    private var ledDesired: (UInt8, UInt8, UInt8, UInt8)?
+    private var ledLatest: (UInt8, UInt8, UInt8, UInt8)?
+    private var ledScheduled = false
 
     func previewLED() {
         let rgb: (UInt8, UInt8, UInt8) = ledUseCustom
             ? (UInt8(ledR), UInt8(ledG), UInt8(ledB))
             : Self.presetRGB[min(ledPreset, 8)]
-        ledDesired = (rgb.0, rgb.1, rgb.2, UInt8(ledBrightness))
-        guard !ledSending, let dev = device else { return }
-        ledSending = true
-        Task {
-            while let d = ledDesired {
-                ledDesired = nil
-                try? await Task.detached { try dev.setLEDLive(r: d.0, g: d.1, b: d.2, brightness: d.3) }.value
+        ledLatest = (rgb.0, rgb.1, rgb.2, UInt8(ledBrightness))
+        guard !ledScheduled, let dev = device else { return }
+        ledScheduled = true
+        io.async { [weak self] in
+            while true {
+                let next: (UInt8, UInt8, UInt8, UInt8)? = DispatchQueue.main.sync {
+                    let n = self?.ledLatest
+                    self?.ledLatest = nil
+                    if n == nil { self?.ledScheduled = false }
+                    return n
+                }
+                guard let d = next else { break }
+                try? dev.setLEDLive(r: d.0, g: d.1, b: d.2, brightness: d.3)
             }
-            ledSending = false
         }
     }
 
-    // MARK: Persist to flash (0x13/0x12), keeping the live value
+    // MARK: Saves
 
     func saveLED() {
-        guard let dev = device, let img = image, !isBusy else { return }
+        guard let img = image else { return }
         var editor = ConfigEditor(img)
         if ledUseCustom {
             editor.setModeLED(mode: selectedMode, colorNo: 0, useCustomRGB: true,
@@ -233,48 +237,29 @@ final class AppModel {
         } else {
             editor.setModeLEDPreset(mode: selectedMode, colorNo: UInt8(ledPreset), brightness: UInt8(ledBrightness))
         }
-        let newImage = editor.image
-        isBusy = true
-        append("Saving Mode \(selectedMode) LED to flash…")
-        Task {
-            do {
-                let restored = try await Task.detached { try dev.restoreImage(newImage, baseline: img) }.value
-                self.image = newImage
-                self.config = ConfigImage(newImage)
-                self.append("✓ Saved — \(restored.count) sector(s) written.")
-            } catch {
-                self.append("✗ Save failed: \(error)")
-            }
-            self.isBusy = false
-        }
+        writeBack(editor.image, "Saving Mode \(selectedMode) LED…")
     }
 
-    /// Persist the edited direct action for the selected button (SW function record).
+    func saveDialFunction() {
+        guard let img = image else { return }
+        var editor = ConfigEditor(img)
+        editor.setDialAction(mode: selectedMode, func: selectedFunc, cw: cwDraft.action, ccw: ccwDraft.action)
+        writeBack(editor.image, "Saving Mode \(selectedMode) dial function \(selectedFunc)…", reconnectHint: true)
+    }
+
     func saveButton() {
-        guard let dev = device, let img = image, !isBusy else { return }
+        guard let img = image else { return }
         var editor = ConfigEditor(img)
         editor.setButtonAction(mode: selectedMode, sw: selectedButton, buttonDraft.action)
         editor.setButtonScript(mode: selectedMode, sw: selectedButton, scriptNo: UInt8(buttonScriptNo))
         editor.setButtonSpecialFunc(mode: selectedMode, sw: selectedButton, funcNo: UInt8(buttonSpFuncNo))
-        let newImage = editor.image
-        isBusy = true
-        append("Saving Mode \(selectedMode) SW\(selectedButton + 1)…")
-        Task {
-            do {
-                let restored = try await Task.detached { try dev.restoreImage(newImage, baseline: img) }.value
-                self.image = newImage
-                self.config = ConfigImage(newImage)
-                self.append("✓ Saved — \(restored.count) sector(s). Takes effect after mode switch / reconnect.")
-            } catch {
-                self.append("✗ Save failed: \(error)")
-            }
-            self.isBusy = false
-        }
+        writeBack(editor.image, "Saving Mode \(selectedMode) SW\(selectedButton + 1)…", reconnectHint: true)
     }
 
     // MARK: Macro (script) editing
 
     var scripts: [ConfigImage.ScriptEntry] { config?.scripts ?? [] }
+    var scriptByteCount: Int { ScriptEncoder.encode(scriptDraft).count }
 
     func selectScript(_ number: Int?) {
         selectedScriptNumber = number
@@ -303,28 +288,16 @@ final class AppModel {
         scriptDraft[index] = .wait(ms: ms)
     }
 
-    var scriptByteCount: Int { ScriptEncoder.encode(scriptDraft).count }
-
     func saveScript() {
-        guard let dev = device, let img = image, !isBusy, let n = selectedScriptNumber else { return }
+        guard let img = image, let n = selectedScriptNumber else { return }
         var editor = ConfigEditor(img)
-        let ok = editor.setScript(number: n, commands: scriptDraft, mode: scriptMode, name: scriptName)
-        guard ok else { append("✗ Script #\(n) has no allocated data region (can't edit in place)."); return }
-        let newImage = editor.image
-        isBusy = true
-        append("Saving script #\(n) (\(scriptDraft.count) cmd, \(scriptByteCount) B)…")
-        Task {
-            do {
-                let restored = try await Task.detached { try dev.restoreImage(newImage, baseline: img) }.value
-                self.image = newImage
-                self.config = ConfigImage(newImage)
-                self.append("✓ Saved script #\(n) — \(restored.count) sector(s). Reconnect the device to run the new macro.")
-            } catch {
-                self.append("✗ Save failed: \(error)")
-            }
-            self.isBusy = false
+        guard editor.setScript(number: n, commands: scriptDraft, mode: scriptMode, name: scriptName) else {
+            append("✗ Script #\(n) has no allocated data region (can't edit in place)."); return
         }
+        writeBack(editor.image, "Saving script #\(n) (\(scriptByteCount) B)…", reconnectHint: true)
     }
+
+    // MARK: Backup
 
     func backup() {
         guard let img = image else { return }

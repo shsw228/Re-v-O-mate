@@ -21,6 +21,18 @@ struct ContentView: View {
         }
         .padding(18)
         .frame(minWidth: 620, minHeight: 560)
+        .onAppear {
+            // Smoke hook: REVOMATE_SMOKE=1 auto-connects and reports to stderr, then exits.
+            if ProcessInfo.processInfo.environment["REVOMATE_SMOKE"] != nil {
+                model.connect()
+            }
+        }
+        .onChange(of: statusText) { _, s in
+            guard ProcessInfo.processInfo.environment["REVOMATE_SMOKE"] != nil else { return }
+            FileHandle.standardError.write(("SMOKE status: " + s + "\n").data(using: .utf8)!)
+            if case .connected = model.status { exit(0) }
+            if case .error = model.status { exit(3) }
+        }
     }
 
     // MARK: Header
@@ -30,6 +42,10 @@ struct ContentView: View {
             Circle().fill(statusColor).frame(width: 11, height: 11)
             Text(statusText).font(.headline)
             if let v = model.version { Text("FW \(v)").foregroundStyle(.secondary).monospaced() }
+            if let p = model.progress {
+                ProgressView(value: p).frame(width: 90)
+                Text("\(Int(p * 100))%").foregroundStyle(.secondary).monospacedDigit()
+            }
             if model.isBusy { ProgressView().controlSize(.small) }
             Spacer()
             Button("Connect") { model.connect() }.disabled(model.status == .connecting)
