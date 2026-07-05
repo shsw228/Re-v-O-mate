@@ -158,6 +158,37 @@ do {
         }
         print("Done — \(restored.count) sector(s) rewritten\(restored.isEmpty ? " (device already matched)" : "")")
 
+    case "led":
+        // led <r> <g> <b> [brightness]  — LIVE LED set (cmd 0x63), instant, not persisted.
+        guard args.count >= 4, let r = UInt8(args[1]), let g = UInt8(args[2]), let b = UInt8(args[3]) else {
+            err("usage: revomate led <r 0-100> <g> <b> [brightness 0-2]"); exit(2)
+        }
+        let bright = args.count >= 5 ? (UInt8(args[4]) ?? 1) : 1
+        let dev = try RevOmateDevice(); defer { dev.close() }
+        let before = try dev.getLEDLive()
+        try dev.setLEDLive(r: r, g: g, b: b, brightness: bright)
+        print("LED set live to \(r),\(g),\(b) bright=\(bright) (was \(before.r),\(before.g),\(before.b) bright=\(before.brightness))")
+
+    case "set-led":
+        // set-led <mode> <r> <g> <b> [brightness]  — edit per-mode LED, write back, verify.
+        guard args.count >= 5, let mode = Int(args[1]),
+              let r = UInt8(args[2]), let g = UInt8(args[3]), let b = UInt8(args[4]) else {
+            err("usage: revomate set-led <mode 0-2> <r 0-100> <g> <b> [brightness 0-2]"); exit(2)
+        }
+        let bright = args.count >= 6 ? (UInt8(args[5]) ?? 1) : 1
+        let dev = try RevOmateDevice(); defer { dev.close() }
+        err("Reading current flash…")
+        let current = try dev.dumpAll()
+        var editor = ConfigEditor(current)
+        editor.setModeLED(mode: mode, colorNo: 0, useCustomRGB: true, rgb: (r, g, b), brightness: bright)
+        err("Writing changed sector(s)…")
+        let restored = try dev.restoreImage(editor.image, baseline: current)
+        // Read back just the mode LED bytes to confirm persistence.
+        let addr = FlashMap.baseModeInfo + FlashMap.baseModeStride * UInt32(mode) + 23
+        let back = try dev.readFlash(address: addr, length: 6)
+        print("Wrote \(restored.count) sector(s). Mode \(mode) LED now: colorNo=\(back[0]) flag=\(back[1]) rgb=\(back[2]),\(back[3]),\(back[4]) bright=\(back[5])")
+        print(back[2] == r && back[3] == g && back[4] == b ? "OK — persisted in flash" : "MISMATCH — not persisted")
+
     case "dump":
         guard args.count >= 2 else { err("usage: revomate dump <path>"); exit(2) }
         let path = args[1]

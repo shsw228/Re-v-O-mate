@@ -71,8 +71,15 @@ editor) is still to come.
 - [x] M1 — full flash dump (backup)
 - [x] M2 — parsers for each settings region (Base / Function / Encoder / SW / Script), validated against a real dump; `config` command
 - [x] M3 — write path (sector erase → page-aware write → read-back verify); `verify` / `restore-sector` / `restore`, validated on hardware
-- [ ] M4 — configuration UI
+- [~] M4 — configuration UI (SwiftUI): LED editor with **live preview (0x63) + persist (flash)**, mode picker, dial/button viewer. Action-record editing still TODO.
 - [ ] M5 — macro (script) editor
+
+### Reflection model (important)
+
+Raw flash writes **persist but do not update the live LED** until a mode change / power cycle
+(the firmware runs off a RAM mirror). For instant feedback the app sends the structured live
+command **`0x63` (set LED)**; the flash write makes it **persist**. So editing = live-preview via
+structured command + save via flash. Confirmed on hardware.
 
 ## License
 

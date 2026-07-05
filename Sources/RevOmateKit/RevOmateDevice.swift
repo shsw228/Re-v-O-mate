@@ -124,15 +124,20 @@ public final class RevOmateDevice: @unchecked Sendable {
     }
 
     /// Restore a full 2 MiB image, touching only sectors that differ from the device.
-    /// Returns the list of restored sector base addresses.
-    public func restoreImage(_ image: [UInt8],
+    /// Pass `baseline` (a known-current image, e.g. from a preceding `dumpAll`) to
+    /// diff in memory and skip re-reading every sector. Returns restored sector addresses.
+    public func restoreImage(_ image: [UInt8], baseline: [UInt8]? = nil,
                              progress: ((_ sector: Int, _ total: Int, _ changed: Bool) -> Void)? = nil) throws -> [UInt32] {
         precondition(image.count == FlashMap.totalSize)
+        precondition(baseline == nil || baseline!.count == FlashMap.totalSize)
         var restored: [UInt32] = []
         for s in 0..<FlashMap.sectorCount {
-            let addr = UInt32(s * FlashMap.sectorSize)
-            let want = Array(image[(s * FlashMap.sectorSize)..<((s + 1) * FlashMap.sectorSize)])
-            let have = try readRange(address: addr, count: FlashMap.sectorSize)
+            let lo = s * FlashMap.sectorSize, hi = lo + FlashMap.sectorSize
+            let addr = UInt32(lo)
+            let want = Array(image[lo..<hi])
+            let have: [UInt8]
+            if let baseline { have = Array(baseline[lo..<hi]) }
+            else { have = try readRange(address: addr, count: FlashMap.sectorSize) }
             let changed = have != want
             if changed {
                 try restoreSector(address: addr, data: want)
@@ -141,6 +146,29 @@ public final class RevOmateDevice: @unchecked Sendable {
             progress?(s, FlashMap.sectorCount, changed)
         }
         return restored
+    }
+
+    // MARK: Live LED (structured commands — apply immediately, unlike raw flash)
+
+    /// Set the LED output live (cmd 0x63). Applied immediately by firmware; this is
+    /// the "instant reflection" path the official app uses while editing. RGB is
+    /// 0..100 duty; brightness is a level 0..2. Not necessarily persisted per-mode.
+    public func setLEDLive(r: UInt8, g: UInt8, b: UInt8, brightness: UInt8) throws {
+        let ledDataNum: UInt8 = 3
+        let resp = try transport.transact([Command.ledSet, ledDataNum, brightness,
+                                           min(r, 100), min(g, 100), min(b, 100)])
+        guard resp.first == Command.ledSet, resp.count > 1, resp[1] == 0x00 else {
+            throw HIDError.badResponse("setLEDLive NG")
+        }
+    }
+
+    /// Read the current live LED output (cmd 0x62): (brightness, r, g, b).
+    public func getLEDLive() throws -> (brightness: UInt8, r: UInt8, g: UInt8, b: UInt8) {
+        let resp = try transport.transact([Command.ledGet])
+        guard resp.first == Command.ledGet, resp.count >= 6 else {
+            throw HIDError.badResponse("getLEDLive")
+        }
+        return (resp[2], resp[3], resp[4], resp[5])
     }
 
     // MARK: Convenience parsed reads
