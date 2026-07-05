@@ -121,7 +121,16 @@ public struct ConfigImage: Sendable {
     public var encoderScripts: [EncoderScriptInfo]  // 3
     public var swFunctions: [SwFuncRecord]      // 33 = 3 modes x 11
     public var scriptHeader: ScriptHeader
-    public var scripts: [ScriptInfo]            // non-empty entries only (size > 0)
+    public var scripts: [ScriptEntry]           // non-empty entries only (size > 0)
+
+    /// A populated script slot: its 1-based number, info record, and decoded commands.
+    public struct ScriptEntry: Sendable, Identifiable {
+        public let number: Int
+        public let info: ScriptInfo
+        public let commands: [ScriptCommand]
+        public let undecodedBytes: Int
+        public var id: Int { number }
+    }
 
     public init(_ d: [UInt8]) {
         precondition(d.count >= 0x030000, "image too small")
@@ -159,7 +168,11 @@ public struct ConfigImage: Sendable {
         scripts = (1...FlashMap.scriptMax).compactMap { n in
             let a = Int(FlashMap.scriptInfoAddress(number: n))
             let info = ScriptInfo(Array(d[a..<(a + 0x110)]))
-            return info.isEmpty ? nil : info
+            guard !info.isEmpty else { return nil }
+            let da = Int(info.address), ds = Int(info.size)
+            let raw = (da + ds <= d.count) ? Array(d[da..<(da + ds)]) : []
+            let (cmds, rest) = ScriptDecoder.decode(raw)
+            return ScriptEntry(number: n, info: info, commands: cmds, undecodedBytes: rest)
         }
     }
 }

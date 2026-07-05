@@ -77,6 +77,12 @@ final class AppModel {
     var ledUseCustom = true
     var ledPreset = 0   // 0..8
 
+    // Macro (script) editing
+    var selectedScriptNumber: Int?
+    var scriptDraft: [ScriptCommand] = []
+    var scriptMode: ScriptInfo.Mode = .oneShot
+    var scriptName = ""
+
     private var device: RevOmateDevice?
 
     var isConnected: Bool { if case .connected = status { return true } else { return false } }
@@ -108,6 +114,7 @@ final class AppModel {
                 self.loadLEDEdit()
                 self.loadFuncEdit()
                 self.loadButtonEdit()
+                self.selectScript(self.scripts.first?.number)
                 self.append("Connected — FW \(v).")
             } catch {
                 self.status = .error("\(error)")
@@ -240,6 +247,60 @@ final class AppModel {
                 self.image = newImage
                 self.config = ConfigImage(newImage)
                 self.append("✓ Saved — \(restored.count) sector(s). Takes effect after mode switch / reconnect.")
+            } catch {
+                self.append("✗ Save failed: \(error)")
+            }
+            self.isBusy = false
+        }
+    }
+
+    // MARK: Macro (script) editing
+
+    var scripts: [ConfigImage.ScriptEntry] { config?.scripts ?? [] }
+
+    func selectScript(_ number: Int?) {
+        selectedScriptNumber = number
+        guard let n = number, let e = scripts.first(where: { $0.number == n }) else {
+            scriptDraft = []; scriptName = ""; scriptMode = .oneShot; return
+        }
+        scriptDraft = e.commands
+        scriptName = e.info.name
+        scriptMode = e.info.mode ?? .oneShot
+    }
+
+    func addCommand(_ opcode: ScriptOpcode) { scriptDraft.append(ScriptCommand(opcode)) }
+    func deleteCommand(at offsets: IndexSet) { scriptDraft.remove(atOffsets: offsets) }
+    func moveCommand(from: IndexSet, to: Int) { scriptDraft.move(fromOffsets: from, toOffset: to) }
+
+    func setOpcode(_ index: Int, _ opcode: ScriptOpcode) {
+        guard scriptDraft.indices.contains(index) else { return }
+        scriptDraft[index] = ScriptCommand(opcode, scriptDraft[index].data)
+    }
+    func setCommandByte(_ index: Int, _ byteIndex: Int, _ value: UInt8) {
+        guard scriptDraft.indices.contains(index), scriptDraft[index].data.indices.contains(byteIndex) else { return }
+        scriptDraft[index].data[byteIndex] = value
+    }
+    func setWaitMs(_ index: Int, _ ms: UInt16) {
+        guard scriptDraft.indices.contains(index) else { return }
+        scriptDraft[index] = .wait(ms: ms)
+    }
+
+    var scriptByteCount: Int { ScriptEncoder.encode(scriptDraft).count }
+
+    func saveScript() {
+        guard let dev = device, let img = image, !isBusy, let n = selectedScriptNumber else { return }
+        var editor = ConfigEditor(img)
+        let ok = editor.setScript(number: n, commands: scriptDraft, mode: scriptMode, name: scriptName)
+        guard ok else { append("✗ Script #\(n) has no allocated data region (can't edit in place)."); return }
+        let newImage = editor.image
+        isBusy = true
+        append("Saving script #\(n) (\(scriptDraft.count) cmd, \(scriptByteCount) B)…")
+        Task {
+            do {
+                let restored = try await Task.detached { try dev.restoreImage(newImage, baseline: img) }.value
+                self.image = newImage
+                self.config = ConfigImage(newImage)
+                self.append("✓ Saved script #\(n) — \(restored.count) sector(s). Reconnect the device to run the new macro.")
             } catch {
                 self.append("✗ Save failed: \(error)")
             }

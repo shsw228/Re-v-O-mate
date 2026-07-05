@@ -104,14 +104,9 @@ do {
             print("  (info table empty; \(cfg.scriptHeader.recordCount) record(s), \(cfg.scriptHeader.totalSize) B packed @0x020000)")
         } else {
             for s in cfg.scripts {
-                let a = Int(s.address), n = Int(s.size)
-                let raw = (a + n <= image.count) ? Array(image[a..<(a + n)]) : []
-                let (cmds, rest) = ScriptDecoder.decode(raw)
-                let body = cmds.map { c in
-                    c.data.isEmpty ? "\(c.opcode)" : "\(c.opcode)(\(c.data.hexString))"
-                }.joined(separator: " → ")
-                let tail = rest > 0 ? " [+\(rest)B undecoded]" : ""
-                print("  mode=\(s.mode.map { "\($0)" } ?? "?") size=\(s.size) @0x\(String(s.address, radix: 16)) \"\(s.name)\": \(body)\(tail)")
+                let body = s.commands.map { $0.describe }.joined(separator: " → ")
+                let tail = s.undecodedBytes > 0 ? " [+\(s.undecodedBytes)B undecoded]" : ""
+                print("  #\(s.number) mode=\(s.info.mode.map { "\($0)" } ?? "?") size=\(s.info.size) @0x\(String(s.info.address, radix: 16)) \"\(s.info.name)\": \(body)\(tail)")
             }
         }
 
@@ -180,6 +175,18 @@ do {
             }
         }
         print("roundtrip: \(checked) records checked, \(bad) mismatch(es) — \(bad == 0 ? "OK" : "FAIL")")
+        // Also validate script bytecode decode -> encode is byte-exact.
+        let cfg = ConfigImage(d)
+        var sChecked = 0, sBad = 0
+        for s in cfg.scripts {
+            let a = Int(s.info.address), n = Int(s.info.size)
+            guard a + n <= d.count else { continue }
+            let orig = Array(d[a..<a + n])
+            let re = ScriptEncoder.encode(s.commands)
+            sChecked += 1
+            if s.undecodedBytes != 0 || re != orig { sBad += 1; print("  SCRIPT MISMATCH @0x\(String(a, radix: 16)): \(orig.hexString) -> \(re.hexString) (undecoded \(s.undecodedBytes))") }
+        }
+        print("script roundtrip: \(sChecked) checked, \(sBad) mismatch(es) — \(sBad == 0 ? "OK" : "FAIL")")
 
     case "led":
         // led <r> <g> <b> [brightness]  — LIVE LED set (cmd 0x63), instant, not persisted.

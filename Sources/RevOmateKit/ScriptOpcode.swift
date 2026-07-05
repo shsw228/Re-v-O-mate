@@ -49,9 +49,47 @@ public enum ScriptOpcode: UInt8, CaseIterable, Sendable {
 }
 
 /// One decoded script command.
-public struct ScriptCommand: Sendable {
+public struct ScriptCommand: Sendable, Identifiable {
+    public let id = UUID()
     public var opcode: ScriptOpcode
     public var data: [UInt8]
+
+    public init(_ opcode: ScriptOpcode, _ data: [UInt8] = []) {
+        self.opcode = opcode
+        var d = data
+        while d.count < opcode.dataLength { d.append(0) }
+        self.data = Array(d.prefix(opcode.dataLength))
+    }
+
+    /// On-flash bytes: [opcode][data...]. For 2-byte data the first byte is the high byte.
+    public var encoded: [UInt8] { [opcode.rawValue] + data }
+
+    // Convenience builders
+    public static func wait(ms: UInt16) -> ScriptCommand {
+        ScriptCommand(.wait, [UInt8(ms >> 8), UInt8(ms & 0xFF)])
+    }
+    public static func keyPress(_ code: UInt8) -> ScriptCommand { ScriptCommand(.keyPress, [code]) }
+    public static func keyRelease(_ code: UInt8) -> ScriptCommand { ScriptCommand(.keyRelease, [code]) }
+
+    /// Human-readable one-liner.
+    public var describe: String {
+        switch opcode {
+        case .wait: return "wait \(UInt16(data[0]) << 8 | UInt16(data[1]))ms"
+        case .keyPress: return "press \(HIDKey.name(data[0]))"
+        case .keyRelease: return "release \(HIDKey.name(data[0]))"
+        case .mouseScrollUp: return "scroll up \(data[0])"
+        case .mouseScrollDown: return "scroll down \(data[0])"
+        case .mouseMove: return "mouse move \(Int8(bitPattern: data[0])),\(Int8(bitPattern: data[1]))"
+        default: return "\(opcode)" + (data.isEmpty ? "" : " (\(data.hexString))")
+        }
+    }
+}
+
+public enum ScriptEncoder {
+    /// Encode a command list into the on-flash byte stream.
+    public static func encode(_ commands: [ScriptCommand]) -> [UInt8] {
+        commands.flatMap { $0.encoded }
+    }
 }
 
 public enum ScriptDecoder {
@@ -64,7 +102,7 @@ public enum ScriptDecoder {
             guard let op = ScriptOpcode(rawValue: bytes[i]) else { return (out, bytes.count - i) }
             let n = op.dataLength
             guard i + 1 + n <= bytes.count else { return (out, bytes.count - i) }
-            out.append(ScriptCommand(opcode: op, data: Array(bytes[(i + 1)..<(i + 1 + n)])))
+            out.append(ScriptCommand(op, Array(bytes[(i + 1)..<(i + 1 + n)])))
             i += 1 + n
         }
         return (out, 0)

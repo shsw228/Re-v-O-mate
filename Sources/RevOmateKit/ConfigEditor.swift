@@ -63,6 +63,56 @@ public struct ConfigEditor: Sendable {
         put(swAddr(mode: mode, sw: s), action.encoded)
     }
 
+    // MARK: Scripts (macros)
+
+    private mutating func putU32LE(_ addr: UInt32, _ v: UInt32) {
+        put(addr, [UInt8(v & 0xFF), UInt8((v >> 8) & 0xFF), UInt8((v >> 16) & 0xFF), UInt8((v >> 24) & 0xFF)])
+    }
+
+    /// Overwrite an EXISTING script (1-based number) in place: rewrites its data at
+    /// the address in its info slot, updates size/mode/name, and refreshes the header.
+    /// Requires the slot to already have an allocated data address (size may be 0 but
+    /// address must be non-zero). Assumes the new bytes fit in the script's sector.
+    /// Returns false if the slot has no allocated data region.
+    @discardableResult
+    public mutating func setScript(number: Int, commands: [ScriptCommand],
+                                   mode: ScriptInfo.Mode, name: String) -> Bool {
+        let slot = FlashMap.scriptInfoAddress(number: number)
+        let info = ScriptInfo(Array(image[Int(slot)..<Int(slot) + 0x110]))
+        guard info.address != 0 else { return false }
+
+        let newBytes = ScriptEncoder.encode(commands)
+        let dataAddr = Int(info.address)
+        let clearLen = Swift.max(Int(info.size), newBytes.count)
+        for i in 0..<clearLen where dataAddr + i < image.count { image[dataAddr + i] = 0xFF }
+        put(info.address, newBytes)
+
+        // Update info slot: size, mode, name (UTF-16LE, byte-length prefix).
+        putU32LE(slot + 4, UInt32(newBytes.count))
+        put(slot + 8, mode.rawValue)
+        let nameBytes = Array(name.utf16).flatMap { [UInt8($0 & 0xFF), UInt8($0 >> 8)] }
+        let clipped = Array(nameBytes.prefix(254))
+        put(slot + 9, UInt8(clipped.count))
+        if !clipped.isEmpty { put(slot + 10, clipped) }
+
+        refreshScriptHeader()
+        return true
+    }
+
+    /// Recompute Rec_Num (count of size>0 slots) and Total_Size in the script header.
+    /// Check_SUM is left untouched (firmware does not appear to validate it).
+    public mutating func refreshScriptHeader() {
+        var count = 0
+        var total: UInt32 = 0
+        for n in 1...FlashMap.scriptMax {
+            let a = Int(FlashMap.scriptInfoAddress(number: n))
+            let size = u32le(Array(image[(a + 4)..<(a + 8)]), 0)
+            if size > 0 { count += 1; total += size }
+        }
+        put(FlashMap.scriptHeader + 2, UInt8(min(count, 255)))
+        putU32LE(FlashMap.scriptHeader + 4, total)
+    }
+
     // MARK: Dial sensitivity (encoder), 1..100 per CW/CCW
 
     public mutating func setDialSensitivity(mode: Int, func f: Int, cw: UInt8, ccw: UInt8) {

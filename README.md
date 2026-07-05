@@ -72,7 +72,7 @@ editor) is still to come.
 - [x] M2 — parsers for each settings region (Base / Function / Encoder / SW / Script), validated against a real dump; `config` command
 - [x] M3 — write path (sector erase → page-aware write → read-back verify); `verify` / `restore-sector` / `restore`, validated on hardware
 - [x] M4 — configuration UI (SwiftUI): per-mode LED editor (custom RGB **or** 9 presets) with **live preview (0x63) + persist (flash)**; dial CW/CCW **and** button action editing via a SetType picker (None / Keyboard w/ modifiers+key / mouse buttons / media); dial/button viewer. Serializer round-trip-validated. (Mouse-move/scroll & joypad payload editing and script-assignment editing are future.)
-- [ ] M5 — macro (script) editor
+- [x] M5 — macro (script) editor (SwiftUI Macros tab): view decoded scripts, add/reorder/delete commands, edit key/wait params, mode & name; in-place write-back (encoder round-trip-validated). Live run needs a reconnect. (Script relocation / creating new scripts & the header checksum are future.)
 
 ### Reflection model (important)
 

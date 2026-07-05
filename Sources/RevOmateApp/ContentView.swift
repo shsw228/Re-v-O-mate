@@ -41,20 +41,29 @@ struct ContentView: View {
 
     @ViewBuilder
     private func editor(_ cfg: ConfigImage) -> some View {
-        Picker("Mode", selection: $model.selectedMode) {
-            ForEach(0..<FlashMap.modeCount, id: \.self) { Text("Mode \($0)").tag($0) }
+        TabView {
+            configTab(cfg).tabItem { Label("Config", systemImage: "dial.medium.fill") }
+            macroTab(cfg).tabItem { Label("Macros", systemImage: "wand.and.stars") }
         }
-        .pickerStyle(.segmented)
+    }
 
-        ScrollView {
-            VStack(alignment: .leading, spacing: 16) {
-                ledEditor
-                dialFunctions(cfg)
-                dialActionEditor(cfg)
-                buttons(cfg)
-                buttonEditor(cfg)
+    private func configTab(_ cfg: ConfigImage) -> some View {
+        VStack(alignment: .leading, spacing: 10) {
+            Picker("Mode", selection: $model.selectedMode) {
+                ForEach(0..<FlashMap.modeCount, id: \.self) { Text("Mode \($0)").tag($0) }
+            }
+            .pickerStyle(.segmented)
+            ScrollView {
+                VStack(alignment: .leading, spacing: 16) {
+                    ledEditor
+                    dialFunctions(cfg)
+                    dialActionEditor(cfg)
+                    buttons(cfg)
+                    buttonEditor(cfg)
+                }
             }
         }
+        .padding(.top, 6)
     }
 
     private var ledEditor: some View {
@@ -237,6 +246,110 @@ struct ContentView: View {
                 }
                 .padding(6).frame(maxWidth: .infinity, alignment: .leading)
             }
+        }
+    }
+
+    // MARK: Macros
+
+    @ViewBuilder
+    private func macroTab(_ cfg: ConfigImage) -> some View {
+        if model.scripts.isEmpty {
+            ContentUnavailableView("No scripts", systemImage: "wand.and.stars",
+                                   description: Text("This device has no stored macros."))
+        } else {
+            VStack(alignment: .leading, spacing: 10) {
+                Picker("Script", selection: Binding(
+                    get: { model.selectedScriptNumber ?? -1 },
+                    set: { model.selectScript($0 == -1 ? nil : $0) }
+                )) {
+                    ForEach(model.scripts) { e in
+                        Text("#\(e.number)\(buttonUsing(e.number, cfg))  \(e.commands.first?.describe ?? "empty")")
+                            .tag(e.number)
+                    }
+                }
+
+                HStack {
+                    TextField("Name", text: $model.scriptName).frame(width: 180)
+                    Picker("Mode", selection: $model.scriptMode) {
+                        Text("Once").tag(ScriptInfo.Mode.oneShot)
+                        Text("Loop").tag(ScriptInfo.Mode.loop)
+                        Text("Fire").tag(ScriptInfo.Mode.fire)
+                        Text("Hold").tag(ScriptInfo.Mode.hold)
+                    }
+                    .pickerStyle(.segmented).frame(width: 220)
+                    Spacer()
+                    Text("\(model.scriptByteCount) B").monospacedDigit().foregroundStyle(.secondary)
+                }
+
+                List {
+                    ForEach(Array(model.scriptDraft.enumerated()), id: \.element.id) { i, cmd in
+                        commandRow(i, cmd)
+                    }
+                    .onDelete { model.deleteCommand(at: $0) }
+                    .onMove { model.moveCommand(from: $0, to: $1) }
+                }
+                .frame(minHeight: 220)
+
+                HStack {
+                    Menu("Add command") {
+                        Button("Key press") { model.addCommand(.keyPress) }
+                        Button("Key release") { model.addCommand(.keyRelease) }
+                        Button("Wait") { model.addCommand(.wait) }
+                        Button("Mouse L press") { model.addCommand(.mousePressL) }
+                        Button("Mouse L release") { model.addCommand(.mouseReleaseL) }
+                        Button("Scroll up") { model.addCommand(.mouseScrollUp) }
+                        Button("Scroll down") { model.addCommand(.mouseScrollDown) }
+                    }
+                    Spacer()
+                    Text("Reconnect the device to run edited macros.")
+                        .font(.caption).foregroundStyle(.secondary)
+                    Button("Save script") { model.saveScript() }.disabled(model.isBusy)
+                }
+            }
+            .padding(.top, 6)
+        }
+    }
+
+    private func buttonUsing(_ number: Int, _ cfg: ConfigImage) -> String {
+        for m in 0..<FlashMap.modeCount {
+            for s in 0..<FlashMap.swCount where Int(cfg.modes[m].swExeScriptNo[s]) == number {
+                return " (M\(m) SW\(s + 1))"
+            }
+        }
+        return ""
+    }
+
+    @ViewBuilder
+    private func commandRow(_ index: Int, _ cmd: ScriptCommand) -> some View {
+        HStack(spacing: 8) {
+            Picker("", selection: Binding(
+                get: { cmd.opcode },
+                set: { model.setOpcode(index, $0) }
+            )) {
+                ForEach(ScriptOpcode.allCases, id: \.self) { Text(String(describing: $0)).tag($0) }
+            }
+            .labelsHidden().frame(width: 180)
+
+            switch cmd.opcode {
+            case .keyPress, .keyRelease, .multiPress, .multiRelease:
+                Picker("", selection: Binding(
+                    get: { cmd.data.first ?? 0 },
+                    set: { model.setCommandByte(index, 0, $0) }
+                )) {
+                    ForEach(HIDKey.common) { Text($0.name).tag($0.usage) }
+                }
+                .labelsHidden().frame(width: 110)
+            case .wait:
+                let ms = UInt16(cmd.data[0]) << 8 | UInt16(cmd.data[1])
+                Stepper("\(ms) ms", value: Binding(
+                    get: { Int(ms) },
+                    set: { model.setWaitMs(index, UInt16(max(0, min(65535, $0)))) }
+                ), in: 0...65535, step: 10)
+                .frame(width: 160)
+            default:
+                Text(cmd.data.isEmpty ? "" : cmd.data.hexString).foregroundStyle(.secondary).font(.callout)
+            }
+            Spacer()
         }
     }
 
