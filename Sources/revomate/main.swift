@@ -115,6 +115,49 @@ do {
             }
         }
 
+    case "verify":
+        // verify <file>  — read whole flash and compare to a file (read-only, safe).
+        guard args.count >= 2 else { err("usage: revomate verify <file>"); exit(2) }
+        let want = [UInt8](try Data(contentsOf: URL(fileURLWithPath: args[1])))
+        let dev = try RevOmateDevice(); defer { dev.close() }
+        err("Reading flash to compare…")
+        let have = try dev.dumpAll()
+        if have == want {
+            print("MATCH — device flash is identical to \(args[1]) (\(have.count) bytes)")
+        } else {
+            let diffs = zip(have, want).enumerated().filter { $0.element.0 != $0.element.1 }
+            let first = diffs.first.map { "0x\(String($0.offset, radix: 16))" } ?? "?"
+            print("DIFFER — \(diffs.count) byte(s) differ (first @\(first)); sizes have=\(have.count) want=\(want.count)")
+        }
+
+    case "restore-sector":
+        // restore-sector <file> <hexAddr>  — erase+write ONE 64 KiB sector, then verify.
+        guard args.count >= 3, let raw = UInt32(args[2].replacingOccurrences(of: "0x", with: ""), radix: 16) else {
+            err("usage: revomate restore-sector <file> <hexAddr>"); exit(2)
+        }
+        let image = [UInt8](try Data(contentsOf: URL(fileURLWithPath: args[1])))
+        guard image.count == FlashMap.totalSize else { err("file is not a 2 MiB image"); exit(2) }
+        let addr = raw & ~UInt32(FlashMap.sectorSize - 1)
+        let sector = Array(image[Int(addr)..<Int(addr) + FlashMap.sectorSize])
+        let dev = try RevOmateDevice(); defer { dev.close() }
+        err("Erasing + writing sector @0x\(String(addr, radix: 16))…")
+        let ok = try dev.restoreSector(address: addr, data: sector, verify: true)
+        print(ok ? "OK — sector @0x\(String(addr, radix: 16)) restored and verified"
+                 : "FAIL — read-back mismatch @0x\(String(addr, radix: 16))")
+        if !ok { exit(1) }
+
+    case "restore":
+        // restore <file>  — restore a full 2 MiB backup, touching only changed sectors.
+        guard args.count >= 2 else { err("usage: revomate restore <file>"); exit(2) }
+        let image = [UInt8](try Data(contentsOf: URL(fileURLWithPath: args[1])))
+        guard image.count == FlashMap.totalSize else { err("file is not a 2 MiB image"); exit(2) }
+        let dev = try RevOmateDevice(); defer { dev.close() }
+        err("Restoring \(args[1]) (only changed sectors)…")
+        let restored = try dev.restoreImage(image) { s, total, changed in
+            if changed { err("  sector \(s)/\(total) @0x\(String(s * FlashMap.sectorSize, radix: 16)) rewritten") }
+        }
+        print("Done — \(restored.count) sector(s) rewritten\(restored.isEmpty ? " (device already matched)" : "")")
+
     case "dump":
         guard args.count >= 2 else { err("usage: revomate dump <path>"); exit(2) }
         let path = args[1]
@@ -141,6 +184,9 @@ do {
           peek <a> [len]  raw hex/ascii dump of a flash range
           config [file]   parse flash (device, or a dump file) into a readable summary
           dump <path>     read entire 2 MiB flash to a .bin file (backup)
+          verify <file>   read flash and compare to a backup (read-only)
+          restore-sector <file> <hexAddr>   erase+write ONE sector, then verify
+          restore <file>  restore a full 2 MiB backup (only changed sectors)
         """)
     }
 } catch {

@@ -88,6 +88,61 @@ public final class RevOmateDevice: @unchecked Sendable {
         }
     }
 
+    /// Write a contiguous region, chunking into ≤58-byte writes that never cross a
+    /// 256-byte page boundary (M25P16 page-program wraps within a page otherwise).
+    /// The target range MUST already be erased (sector erase leaves 0xFF).
+    public func writeRegion(address: UInt32, data: [UInt8],
+                            progress: ((_ done: Int, _ total: Int) -> Void)? = nil) throws {
+        var addr = address
+        var i = 0
+        while i < data.count {
+            let pageEnd = (addr & ~UInt32(FlashMap.pageSize - 1)) + UInt32(FlashMap.pageSize)
+            let chunk = Int(min(UInt32(Command.maxWriteChunk), pageEnd - addr, UInt32(data.count - i)))
+            try writeFlash(address: addr, data: Array(data[i..<(i + chunk)]))
+            addr += UInt32(chunk)
+            i += chunk
+            progress?(i, data.count)
+        }
+    }
+
+    /// Erase one 64 KiB sector and program `data` (must be exactly one sector).
+    /// Only pages containing non-0xFF bytes are written (erase already leaves 0xFF).
+    /// Returns whether the read-back matches (when `verify` is true).
+    @discardableResult
+    public func restoreSector(address: UInt32, data: [UInt8], verify: Bool = true) throws -> Bool {
+        precondition(data.count == FlashMap.sectorSize)
+        precondition(address % UInt32(FlashMap.sectorSize) == 0, "sector address must be aligned")
+        try eraseSector(address: address)
+        for pageOff in stride(from: 0, to: FlashMap.sectorSize, by: FlashMap.pageSize) {
+            let page = Array(data[pageOff..<(pageOff + FlashMap.pageSize)])
+            if page.contains(where: { $0 != 0xFF }) {
+                try writeRegion(address: address + UInt32(pageOff), data: page)
+            }
+        }
+        guard verify else { return true }
+        return try readRange(address: address, count: FlashMap.sectorSize) == data
+    }
+
+    /// Restore a full 2 MiB image, touching only sectors that differ from the device.
+    /// Returns the list of restored sector base addresses.
+    public func restoreImage(_ image: [UInt8],
+                             progress: ((_ sector: Int, _ total: Int, _ changed: Bool) -> Void)? = nil) throws -> [UInt32] {
+        precondition(image.count == FlashMap.totalSize)
+        var restored: [UInt32] = []
+        for s in 0..<FlashMap.sectorCount {
+            let addr = UInt32(s * FlashMap.sectorSize)
+            let want = Array(image[(s * FlashMap.sectorSize)..<((s + 1) * FlashMap.sectorSize)])
+            let have = try readRange(address: addr, count: FlashMap.sectorSize)
+            let changed = have != want
+            if changed {
+                try restoreSector(address: addr, data: want)
+                restored.append(addr)
+            }
+            progress?(s, FlashMap.sectorCount, changed)
+        }
+        return restored
+    }
+
     // MARK: Convenience parsed reads
 
     public func scriptHeader() throws -> ScriptHeader {

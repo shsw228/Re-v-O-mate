@@ -44,7 +44,13 @@ swift run revomate peek 0x020000 64  # raw hex/ascii dump of a flash range
 swift run revomate config            # readable config summary (dial/buttons/LED/scripts)
 swift run revomate config dump.bin   #   ...parsed from a saved dump instead
 swift run revomate dump backup.bin   # back up the whole 2 MiB flash
+swift run revomate verify backup.bin # read flash and compare to a backup (read-only)
+swift run revomate restore backup.bin  # restore a backup (only rewrites changed sectors)
 ```
+
+> Writing is done with a full backup as the safety net: `restore` reads each
+> sector first and only erases/rewrites the ones that differ, then the write path
+> read-back-verifies. Take a `dump` before experimenting.
 
 > On first run macOS may prompt for USB/Input-Monitoring access — grant it.
 > (Launched via `swift run`, the permission attaches to the parent terminal.)
@@ -64,7 +70,7 @@ editor) is still to come.
 - [x] M0 — connectivity (open vendor interface + `0x56`)
 - [x] M1 — full flash dump (backup)
 - [x] M2 — parsers for each settings region (Base / Function / Encoder / SW / Script), validated against a real dump; `config` command
-- [ ] M3 — write path (sector erase → write → read-back verify)
+- [x] M3 — write path (sector erase → page-aware write → read-back verify); `verify` / `restore-sector` / `restore`, validated on hardware
 - [ ] M4 — configuration UI
 - [ ] M5 — macro (script) editor
 
