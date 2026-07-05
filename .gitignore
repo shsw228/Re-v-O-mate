@@ -5,5 +5,8 @@
 *.xcworkspace
 DerivedData/
 
+# Built app bundles
+dist/
+
 # Flash dumps / backups
 *.bin

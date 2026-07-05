@@ -55,15 +55,24 @@ swift run revomate restore backup.bin  # restore a backup (only rewrites changed
 > On first run macOS may prompt for USB/Input-Monitoring access — grant it.
 > (Launched via `swift run`, the permission attaches to the parent terminal.)
 
-## App skeleton
+## App
+
+Run from source:
 
 ```sh
 swift run RevOmateApp
 ```
 
-Connect opens the device and shows the firmware version and script count; Dump…
-backs up the flash. The configuration UI (dial/button assignments, LED, macro
-editor) is still to come.
+Or build a distributable, double-clickable bundle (release build, ad-hoc signed):
+
+```sh
+Packaging/make-app.sh --open      # -> dist/Re-v-O-mate.app
+```
+
+The app: **Connect** reads the device; the **Config** tab edits per-mode LED
+(custom RGB / preset, live preview) and dial/button actions; the **Macros** tab
+edits scripts; **Backup…** saves a flash image. It is non-sandboxed (direct HID
+access); macOS may prompt for USB/Input-Monitoring on first run.
 
 ## Status
 
