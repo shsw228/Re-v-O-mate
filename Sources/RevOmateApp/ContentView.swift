@@ -194,6 +194,11 @@ struct ContentView: View {
                     ForEach(HIDKey.common) { k in Text(k.name).tag(k.usage) }
                 }
                 .labelsHidden().frame(width: 100)
+            } else if d.isMouseMove {
+                Stepper("X \(d.moveX)", value: draft.moveX, in: -127...127).frame(width: 100)
+                Stepper("Y \(d.moveY)", value: draft.moveY, in: -127...127).frame(width: 100)
+            } else if d.isMouseScroll {
+                Stepper("wheel \(d.wheel)", value: draft.wheel, in: -127...127).frame(width: 120)
             }
             Spacer()
         }
@@ -201,7 +206,6 @@ struct ContentView: View {
 
     @ViewBuilder
     private func buttonEditor(_ cfg: ConfigImage) -> some View {
-        let mode = cfg.modes[model.selectedMode]
         GroupBox("Edit button action") {
             VStack(alignment: .leading, spacing: 10) {
                 Picker("Button", selection: $model.selectedButton) {
@@ -209,12 +213,21 @@ struct ContentView: View {
                 }
                 .pickerStyle(.segmented)
 
-                let assigned = mode.swExeScriptNo[model.selectedButton] != 0 || mode.swSpFuncNo[model.selectedButton] != 0
-                if assigned {
-                    Text("This button also has a script/special-function assignment (edited elsewhere).")
-                        .font(.caption).foregroundStyle(.secondary)
+                HStack {
+                    Text("Script").frame(width: 64, alignment: .leading)
+                    Picker("", selection: $model.buttonScriptNo) {
+                        Text("None").tag(0)
+                        ForEach(model.scripts) { e in
+                            Text("#\(e.number) \(e.commands.first?.describe ?? "")").tag(e.number)
+                        }
+                    }
+                    .labelsHidden().frame(width: 200)
+                    Text("Special func").frame(width: 90, alignment: .trailing)
+                    Stepper("\(model.buttonSpFuncNo)", value: $model.buttonSpFuncNo, in: 0...255).frame(width: 110)
                 }
                 actionRow("Action", draft: $model.buttonDraft)
+                Text("A button runs its script (if set), else its special func, else this direct action.")
+                    .font(.caption).foregroundStyle(.secondary)
 
                 HStack {
                     Text("Takes effect after a mode switch / reconnect.")

@@ -35,6 +35,7 @@ final class AppModel {
         var ctrl = false, shift = false, alt = false, cmd = false
         var key: UInt8 = 0
         var sense: UInt8 = 100
+        var moveX = 0, moveY = 0, wheel = 0    // mouse move / scroll payload (signed)
 
         var modifiers: KeyModifiers {
             var m: KeyModifiers = []
@@ -43,10 +44,18 @@ final class AppModel {
             return m
         }
         var isKeyboard: Bool { typeRaw == 9 }
+        var isMouseMove: Bool { typeRaw == 7 }
+        var isMouseScroll: Bool { typeRaw == 8 }
+
         var action: ActionRecord {
             switch typeRaw {
             case 0: return .none
             case 9: return .keyboard(modifiers, [key], sense: sense)
+            case 7: return ActionRecord(type: SetType(7),
+                                        payload: [0, UInt8(bitPattern: Int8(clamping: moveX)),
+                                                  UInt8(bitPattern: Int8(clamping: moveY)), 0, 0, 0], sense: sense)
+            case 8: return ActionRecord(type: SetType(8),
+                                        payload: [0, 0, 0, UInt8(bitPattern: Int8(clamping: wheel)), 0, 0], sense: sense)
             default: return ActionRecord(type: SetType(typeRaw), payload: [], sense: sense)
             }
         }
@@ -60,18 +69,23 @@ final class AppModel {
             cmd = m.contains(.leftGUI) || m.contains(.rightGUI)
             key = a.keys.first ?? 0
             sense = a.sense == 0 ? 100 : a.sense
+            moveX = Int(Int8(bitPattern: a.payload[1]))
+            moveY = Int(Int8(bitPattern: a.payload[2]))
+            wheel = Int(Int8(bitPattern: a.payload[3]))
         }
     }
 
-    /// SetType values offered in the editor (None / Keyboard / no-payload types).
-    static let editableTypes: [UInt8] = [0, 9, 1, 2, 3, 4, 5, 6, 10, 11, 12, 16, 17, 18, 19, 20]
+    /// All SetType values (0..44) offered in the editor.
+    static let editableTypes: [UInt8] = Array(0...44)
 
     var cwDraft = ActionDraft()
     var ccwDraft = ActionDraft()
 
-    // Buttons (direct SW action record)
+    // Buttons (direct SW action record + script/special-func assignment)
     var selectedButton = 0 { didSet { loadButtonEdit() } }
     var buttonDraft = ActionDraft()
+    var buttonScriptNo = 0    // 0 = none
+    var buttonSpFuncNo = 0    // 0 = none
 
     // LED preset vs custom
     var ledUseCustom = true
@@ -143,8 +157,10 @@ final class AppModel {
     private func loadButtonEdit() {
         guard let cfg = config else { return }
         let idx = selectedMode * FlashMap.swCount + selectedButton
-        guard idx < cfg.swFunctions.count else { return }
+        guard idx < cfg.swFunctions.count, selectedMode < cfg.modes.count else { return }
         buttonDraft = ActionDraft(cfg.swFunctions[idx].action)
+        buttonScriptNo = Int(cfg.modes[selectedMode].swExeScriptNo[selectedButton])
+        buttonSpFuncNo = Int(cfg.modes[selectedMode].swSpFuncNo[selectedButton])
     }
 
     private func loadFuncEdit() {
@@ -238,9 +254,11 @@ final class AppModel {
         guard let dev = device, let img = image, !isBusy else { return }
         var editor = ConfigEditor(img)
         editor.setButtonAction(mode: selectedMode, sw: selectedButton, buttonDraft.action)
+        editor.setButtonScript(mode: selectedMode, sw: selectedButton, scriptNo: UInt8(buttonScriptNo))
+        editor.setButtonSpecialFunc(mode: selectedMode, sw: selectedButton, funcNo: UInt8(buttonSpFuncNo))
         let newImage = editor.image
         isBusy = true
-        append("Saving Mode \(selectedMode) SW\(selectedButton + 1) action…")
+        append("Saving Mode \(selectedMode) SW\(selectedButton + 1)…")
         Task {
             do {
                 let restored = try await Task.detached { try dev.restoreImage(newImage, baseline: img) }.value

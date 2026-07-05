@@ -63,6 +63,16 @@ public struct ConfigEditor: Sendable {
         put(swAddr(mode: mode, sw: s), action.encoded)
     }
 
+    /// Assign a script number (1-based; 0 = none) to a button, stored in base-mode info.
+    public mutating func setButtonScript(mode: Int, sw s: Int, scriptNo: UInt8) {
+        put(baseModeAddr(mode) + UInt32(s), scriptNo)          // sw_exe_script_no[s] @ +0..10
+    }
+
+    /// Assign a special-function number (0 = none) to a button.
+    public mutating func setButtonSpecialFunc(mode: Int, sw s: Int, funcNo: UInt8) {
+        put(baseModeAddr(mode) + 11 + UInt32(s), funcNo)       // sw_sp_func_no[s] @ +11..21
+    }
+
     // MARK: Scripts (macros)
 
     private mutating func putU32LE(_ addr: UInt32, _ v: UInt32) {
