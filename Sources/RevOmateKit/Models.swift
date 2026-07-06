@@ -69,7 +69,7 @@ public struct ScriptInfo: Sendable {
         name = String(decoding: scalars, as: UTF16.self)
     }
 
-    /// A slot is "used" iff it points at real data. The info table is a
-    /// host-rebuildable index; a raw device dump can have every slot empty.
-    public var isEmpty: Bool { size == 0 }
+    /// A slot is "used" iff it points at real data. Size 0 = unused; size
+    /// 0xFFFFFFFF = erased/unread flash. The info table is a host-rebuildable index.
+    public var isEmpty: Bool { size == 0 || size == 0xFFFF_FFFF }
 }

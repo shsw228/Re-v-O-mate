@@ -127,8 +127,9 @@ final class AppModel {
             do {
                 let dev = try RevOmateDevice()
                 let v = try dev.version()
+                // Phase 1: config only (fast) -> connected.
                 var lastPct = -1
-                let img = try dev.readConfigImage { done, total in
+                let img = try dev.readConfig { done, total in
                     let pct = done * 100 / max(total, 1)
                     if pct != lastPct && pct % 5 == 0 {
                         lastPct = pct
@@ -141,8 +142,16 @@ final class AppModel {
                     self.device = dev; self.version = v; self.image = img; self.config = cfg
                     self.progress = nil; self.status = .connected
                     self.loadLEDEdit(); self.loadFuncEdit(); self.loadButtonEdit()
+                    self.append("Connected — FW \(v). Loading macros…")
+                }
+                // Phase 2: scripts (background) -> Macros tab fills in.
+                let img2 = try dev.readScripts(into: img)
+                DispatchQueue.main.async {
+                    guard let self else { return }
+                    self.image = img2
+                    self.config = ConfigImage(img2)
                     self.selectScript(self.scripts.first?.number)
-                    self.append("Connected — FW \(v).")
+                    self.append("Macros loaded (\(self.scripts.count)).")
                 }
             } catch {
                 DispatchQueue.main.async {

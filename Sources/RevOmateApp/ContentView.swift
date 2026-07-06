@@ -27,11 +27,12 @@ struct ContentView: View {
                 model.connect()
             }
         }
-        .onChange(of: statusText) { _, s in
+        .onChange(of: model.log.count) { _, _ in
             guard ProcessInfo.processInfo.environment["REVOMATE_SMOKE"] != nil else { return }
-            FileHandle.standardError.write(("SMOKE status: " + s + "\n").data(using: .utf8)!)
-            if case .connected = model.status { exit(0) }
-            if case .error = model.status { exit(3) }
+            let last = model.log.last ?? ""
+            FileHandle.standardError.write(("SMOKE: " + last + "\n").data(using: .utf8)!)
+            if last.contains("Macros loaded") { exit(0) }
+            if last.hasPrefix("✗") { exit(3) }
         }
     }
 

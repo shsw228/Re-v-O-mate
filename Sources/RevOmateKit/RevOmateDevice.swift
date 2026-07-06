@@ -65,33 +65,37 @@ public final class RevOmateDevice: @unchecked Sendable {
         try readRange(address: 0, count: FlashMap.totalSize, progress: progress)
     }
 
-    /// Fast read for the config UI: reads only the regions that hold settings —
-    /// sector 0 (all config), the script header + info table, and the data of each
-    /// populated script — into a 0xFF-filled 2 MiB buffer. ~120 KB vs 2 MiB, so it's
-    /// a few seconds instead of a minute. NOT a full backup (empty area stays 0xFF).
-    public func readConfigImage(progress: ((_ done: Int, _ total: Int) -> Void)? = nil) throws -> [UInt8] {
+    /// Bytes of sector 0 actually used by config (base header … SW function table).
+    /// The rest of the 64 KiB sector is unused (0xFF), so we only read this much.
+    static let configRegionSize = 0x1000
+
+    /// Phase 1 (fast, <1 s): read only the used config region of sector 0 into a
+    /// 0xFF-filled 2 MiB buffer. Enough for the whole Config UI. Scripts load separately.
+    /// Safe for write-back: the unread sector-0 tail is unused flash (0xFF).
+    public func readConfig(progress: ((_ done: Int, _ total: Int) -> Void)? = nil) throws -> [UInt8] {
         var img = [UInt8](repeating: 0xFF, count: FlashMap.totalSize)
+        let bytes = try readRange(address: 0, count: RevOmateDevice.configRegionSize, progress: progress)
+        for (i, b) in bytes.enumerated() { img[i] = b }
+        return img
+    }
+
+    /// Phase 2: fill in the script header + info table + each populated script's data,
+    /// returning an updated image. Run after `readConfig` to populate the Macros tab.
+    public func readScripts(into base: [UInt8],
+                            progress: ((_ done: Int, _ total: Int) -> Void)? = nil) throws -> [UInt8] {
+        var img = base
         let infoEnd = Int(FlashMap.scriptInfoAddress(number: FlashMap.scriptMax) + FlashMap.scriptInfoStride)
         let headerToInfo = infoEnd - Int(FlashMap.scriptHeader)
-        let planned = FlashMap.sectorSize + headerToInfo
-        var done = 0
+        let bytes = try readRange(address: FlashMap.scriptHeader, count: headerToInfo, progress: progress)
+        for (i, b) in bytes.enumerated() { img[Int(FlashMap.scriptHeader) + i] = b }
 
-        func load(_ addr: UInt32, _ len: Int) throws {
-            let bytes = try readRange(address: addr, count: len) { d, _ in progress?(done + d, planned) }
-            for (i, b) in bytes.enumerated() { img[Int(addr) + i] = b }
-            done += len
-        }
-
-        try load(0, FlashMap.sectorSize)                              // sector 0: all config
-        try load(FlashMap.scriptHeader, headerToInfo)                 // header + 200-slot info table
-
-        for n in 1...FlashMap.scriptMax {                             // data of populated scripts
+        for n in 1...FlashMap.scriptMax {
             let a = Int(FlashMap.scriptInfoAddress(number: n))
             let addr = u32le(Array(img[a..<(a + 4)]), 0)
             let size = u32le(Array(img[(a + 4)..<(a + 8)]), 0)
-            if size > 0, addr != 0, Int(addr) + Int(size) <= img.count {
-                let bytes = try readRange(address: addr, count: Int(size))
-                for (i, b) in bytes.enumerated() { img[Int(addr) + i] = b }
+            if size > 0, size != 0xFFFF_FFFF, addr != 0, Int(addr) + Int(size) <= img.count {
+                let sd = try readRange(address: addr, count: Int(size))
+                for (i, b) in sd.enumerated() { img[Int(addr) + i] = b }
             }
         }
         return img
