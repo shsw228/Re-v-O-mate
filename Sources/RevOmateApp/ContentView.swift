@@ -41,27 +41,33 @@ struct DetailView: View {
             .frame(maxWidth: .infinity, maxHeight: .infinity)
 
             Divider()
+            StatusView(model: model)
+            Divider()
             LogView(model: model).frame(height: 96)
         }
     }
 }
 
-// MARK: - Toolbar status (hosted in an NSToolbarItem)
+// MARK: - Footer status bar (connection state + device FW version + progress)
 
 struct StatusView: View {
     var model: AppModel
 
     var body: some View {
         HStack(spacing: 8) {
-            Circle().fill(statusColor).frame(width: 10, height: 10)
-            Text(model.statusText).font(.callout).lineLimit(1)
+            Circle().fill(statusColor).frame(width: 9, height: 9)
+            Text(model.statusText).font(.callout).foregroundStyle(.secondary).lineLimit(1)
+            Spacer()
             if let p = model.progress {
-                ProgressView(value: p).frame(width: 80)
+                ProgressView(value: p).frame(width: 110)
+                Text("\(Int(p * 100))%").font(.caption).monospacedDigit().foregroundStyle(.secondary)
             } else if model.isBusy {
                 ProgressView().controlSize(.small)
             }
         }
-        .padding(.horizontal, 4)
+        .padding(.horizontal, 12)
+        .padding(.vertical, 5)
+        .background(.background.secondary)
     }
 
     private var statusColor: Color {
@@ -128,7 +134,7 @@ struct ConfigView: View {
     }
 
     private var ledEditor: some View {
-        GroupBox("LED") {
+        GroupBox(label: Label("LED", systemImage: "lightbulb.fill").foregroundStyle(.yellow)) {
             VStack(alignment: .leading, spacing: 8) {
                 HStack(spacing: 12) {
                     RoundedRectangle(cornerRadius: 6).fill(model.ledSwatch)
@@ -140,7 +146,10 @@ struct ConfigView: View {
                     .pickerStyle(.segmented).labelsHidden().frame(width: 200)
                     .onChange(of: model.ledUseCustom) { model.previewLED() }
                     Spacer()
-                    Button("Save LED") { model.saveLED() }.disabled(model.isBusy)
+                    Button { model.saveLED() } label: {
+                        Label("Save LED", systemImage: "square.and.arrow.down")
+                    }
+                    .buttonStyle(.borderedProminent).disabled(model.isBusy)
                 }
                 if model.ledUseCustom {
                     ledSlider("R", value: $model.ledR)
@@ -181,7 +190,7 @@ struct ConfigView: View {
     }
 
     private func dialFunctions(_ cfg: ConfigImage) -> some View {
-        GroupBox("Dial functions (current mode)") {
+        GroupBox(label: Label("Dial functions (current mode)", systemImage: "dial.medium.fill")) {
             VStack(alignment: .leading, spacing: 4) {
                 ForEach(0..<FlashMap.functionsPerMode, id: \.self) { f in
                     let idx = model.selectedMode * FlashMap.functionsPerMode + f
@@ -204,7 +213,7 @@ struct ConfigView: View {
 
     @ViewBuilder
     private func dialActionEditor(_ cfg: ConfigImage) -> some View {
-        GroupBox("Edit dial action") {
+        GroupBox(label: Label("Edit dial action", systemImage: "slider.horizontal.3")) {
             VStack(alignment: .leading, spacing: 8) {
                 Picker("", selection: $model.selectedFunc) {
                     ForEach(0..<FlashMap.functionsPerMode, id: \.self) { f in
@@ -214,12 +223,16 @@ struct ConfigView: View {
                     }
                 }
                 .pickerStyle(.segmented).labelsHidden()
-                actionRow("CW ↻", draft: $model.cwDraft)
-                actionRow("CCW ↺", draft: $model.ccwDraft)
+                actionRow("CW", icon: "arrow.clockwise", draft: $model.cwDraft)
+                actionRow("CCW", icon: "arrow.counterclockwise", draft: $model.ccwDraft)
                 HStack {
-                    Text("Applies after a mode switch / reconnect.").font(.caption).foregroundStyle(.secondary)
+                    Label("Applies after a mode switch / reconnect.", systemImage: "info.circle")
+                        .font(.caption).foregroundStyle(.secondary)
                     Spacer()
-                    Button("Save dial function") { model.saveDialFunction() }.disabled(model.isBusy)
+                    Button { model.saveDialFunction() } label: {
+                        Label("Save dial function", systemImage: "square.and.arrow.down")
+                    }
+                    .buttonStyle(.borderedProminent).disabled(model.isBusy)
                 }
             }
             .padding(8).frame(maxWidth: .infinity, alignment: .leading)
@@ -228,7 +241,7 @@ struct ConfigView: View {
 
     @ViewBuilder
     private func buttonEditor(_ cfg: ConfigImage) -> some View {
-        GroupBox("Edit button") {
+        GroupBox(label: Label("Edit button", systemImage: "circle.grid.3x3.fill")) {
             VStack(alignment: .leading, spacing: 8) {
                 Picker("", selection: $model.selectedButton) {
                     ForEach(0..<FlashMap.swCount, id: \.self) { Text("SW\($0 + 1)").tag($0) }
@@ -253,12 +266,15 @@ struct ConfigView: View {
                     Stepper("\(model.buttonSpFuncNo)", value: $model.buttonSpFuncNo, in: 0...255).frame(width: 110)
                     Spacer()
                 }
-                actionRow("Action", draft: $model.buttonDraft)
+                actionRow("Action", icon: "bolt.fill", draft: $model.buttonDraft)
                 HStack {
-                    Text("Runs its script if set, else special func, else the direct action.")
+                    Label("Runs its script if set, else special func, else the direct action.", systemImage: "info.circle")
                         .font(.caption).foregroundStyle(.secondary)
                     Spacer()
-                    Button("Save button") { model.saveButton() }.disabled(model.isBusy)
+                    Button { model.saveButton() } label: {
+                        Label("Save button", systemImage: "square.and.arrow.down")
+                    }
+                    .buttonStyle(.borderedProminent).disabled(model.isBusy)
                 }
             }
             .padding(8).frame(maxWidth: .infinity, alignment: .leading)
@@ -266,10 +282,12 @@ struct ConfigView: View {
     }
 
     /// Generalized action editor row: type picker + (keyboard) modifiers & key, or mouse payload.
-    private func actionRow(_ label: String, draft: Binding<AppModel.ActionDraft>) -> some View {
+    private func actionRow(_ label: String, icon: String, draft: Binding<AppModel.ActionDraft>) -> some View {
         let d = draft.wrappedValue
         return HStack(spacing: 6) {
-            Text(label).monospaced().frame(width: 64, alignment: .leading)
+            Label(label, systemImage: icon)
+                .labelStyle(.titleAndIcon)
+                .frame(width: 76, alignment: .leading)
             Picker("", selection: draft.typeRaw) {
                 ForEach(AppModel.editableTypes, id: \.self) { t in Text(SetType(t).description).tag(t) }
             }
@@ -354,31 +372,56 @@ struct MacrosView: View {
                 Text("\(row.index + 1)").monospacedDigit().foregroundStyle(.secondary)
             }
             .width(28)
-            TableColumn("Command") { (row: IndexedCommand) in commandOpcodePicker(row.index, row.command) }
+            TableColumn("Command") { (row: IndexedCommand) in
+                HStack(spacing: 6) {
+                    Image(systemName: Self.opcodeIcon(row.command.opcode))
+                        .foregroundStyle(.tint).frame(width: 16)
+                    commandOpcodePicker(row.index, row.command)
+                }
+            }
             TableColumn("Parameter") { (row: IndexedCommand) in commandParam(row.index, row.command) }
         }
         .frame(minHeight: 200)
     }
 
+    /// A rough category icon for a script opcode.
+    static func opcodeIcon(_ op: ScriptOpcode) -> String {
+        switch op {
+        case .wait: return "clock"
+        case .keyPress, .keyRelease, .multiPress, .multiRelease: return "keyboard"
+        case .mouseScrollUp, .mouseScrollDown: return "scroll"
+        case .mouseMove: return "cursorarrow.motionlines"
+        case .joyBtnPress, .joyBtnRelease, .joyHatPress, .joyHatRelease,
+             .joyLLever, .joyRLever, .joyLLeverCenter, .joyRLeverCenter: return "gamecontroller"
+        default: return "cursorarrow.click"   // mouse buttons
+        }
+    }
+
     private var commandBar: some View {
         HStack {
-            Menu("Add") {
-                Button("Key press") { model.addCommand(.keyPress) }
-                Button("Key release") { model.addCommand(.keyRelease) }
-                Button("Wait") { model.addCommand(.wait) }
-                Button("Mouse L press") { model.addCommand(.mousePressL) }
-                Button("Mouse L release") { model.addCommand(.mouseReleaseL) }
-                Button("Scroll up") { model.addCommand(.mouseScrollUp) }
-                Button("Scroll down") { model.addCommand(.mouseScrollDown) }
+            Menu {
+                Button { model.addCommand(.keyPress) } label: { Label("Key press", systemImage: "keyboard") }
+                Button { model.addCommand(.keyRelease) } label: { Label("Key release", systemImage: "keyboard") }
+                Button { model.addCommand(.wait) } label: { Label("Wait", systemImage: "clock") }
+                Button { model.addCommand(.mousePressL) } label: { Label("Mouse L press", systemImage: "cursorarrow.click") }
+                Button { model.addCommand(.mouseReleaseL) } label: { Label("Mouse L release", systemImage: "cursorarrow.click") }
+                Button { model.addCommand(.mouseScrollUp) } label: { Label("Scroll up", systemImage: "arrow.up") }
+                Button { model.addCommand(.mouseScrollDown) } label: { Label("Scroll down", systemImage: "arrow.down") }
+            } label: {
+                Label("Add", systemImage: "plus")
             }
-            .fixedSize()
-            Button("Delete last") {
-                if !model.scriptDraft.isEmpty { model.deleteCommand(at: [model.scriptDraft.count - 1]) }
+            .menuStyle(.borderlessButton).fixedSize()
+            Button { if !model.scriptDraft.isEmpty { model.deleteCommand(at: [model.scriptDraft.count - 1]) } } label: {
+                Label("Delete last", systemImage: "minus")
             }
             .disabled(model.scriptDraft.isEmpty)
             Spacer()
-            Text("Reconnect the device to run edited macros.").font(.caption).foregroundStyle(.secondary)
-            Button("Save script") { model.saveScript() }.disabled(model.isBusy)
+            Label("Reconnect the device to run edited macros.", systemImage: "info.circle")
+                .font(.caption).foregroundStyle(.secondary)
+            Button { model.saveScript() } label: {
+                Label("Save script", systemImage: "square.and.arrow.down")
+            }
+            .buttonStyle(.borderedProminent).disabled(model.isBusy)
         }
         .padding(12)
     }

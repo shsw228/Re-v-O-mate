@@ -17,7 +17,6 @@ enum RevOmateMain {
 private extension NSToolbarItem.Identifier {
     static let connect = NSToolbarItem.Identifier("connect")
     static let backup = NSToolbarItem.Identifier("backup")
-    static let status = NSToolbarItem.Identifier("status")
 }
 
 /// Hosts a SwiftUI view pinned to fill its container (so it takes the split pane's width).
@@ -106,23 +105,16 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSToolbarDelegate {
             return button(id, label: "Connect", symbol: "cable.connector", action: #selector(connect))
         case .backup:
             return button(id, label: "Backup", symbol: "square.and.arrow.down", action: #selector(backup))
-        case .status:
-            let item = NSToolbarItem(itemIdentifier: .status)
-            let host = NSHostingView(rootView: StatusView(model: model))
-            host.frame = NSRect(x: 0, y: 0, width: 260, height: 28)
-            item.view = host
-            item.visibilityPriority = .high
-            return item
         default:
             return nil
         }
     }
 
     func toolbarDefaultItemIdentifiers(_ toolbar: NSToolbar) -> [NSToolbarItem.Identifier] {
-        [.connect, .backup, .flexibleSpace, .status]
+        [.connect, .backup]
     }
     func toolbarAllowedItemIdentifiers(_ toolbar: NSToolbar) -> [NSToolbarItem.Identifier] {
-        [.connect, .backup, .flexibleSpace, .status]
+        [.connect, .backup]
     }
 
     private func button(_ id: NSToolbarItem.Identifier, label: String, symbol: String, action: Selector) -> NSToolbarItem {
