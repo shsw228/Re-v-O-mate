@@ -10,11 +10,23 @@ final class AppModel {
         case idle, connecting, connected, error(String)
     }
 
+    enum Section: Hashable, CaseIterable { case config, macros }
+    var section: Section = .config
+
     var status: Status = .idle
     var version: String?
     var log: [String] = []
     var isBusy = false
     var progress: Double?          // 0..1 during long reads
+
+    var statusText: String {
+        switch status {
+        case .idle: return "Not connected"
+        case .connecting: return "Connecting…"
+        case .connected: return "Rev-O-mate" + (version.map { " · FW \($0)" } ?? "")
+        case .error(let m): return "Error: \(m)"
+        }
+    }
 
     /// The last full image read from the device (baseline for diffed writes).
     private var image: [UInt8]?

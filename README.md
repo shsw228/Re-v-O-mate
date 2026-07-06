@@ -69,10 +69,12 @@ Or build a distributable, double-clickable bundle (release build, ad-hoc signed)
 Packaging/make-app.sh --open      # -> dist/Re-v-O-mate.app
 ```
 
-The app: **Connect** reads the device; the **Config** tab edits per-mode LED
-(custom RGB / preset, live preview) and dial/button actions; the **Macros** tab
-edits scripts; **Backup…** saves a flash image. It is non-sandboxed (direct HID
-access); macOS may prompt for USB/Input-Monitoring on first run.
+UI shell is **AppKit** (NSToolbar + NSSplitView source-list sidebar); each screen's
+content is SwiftUI via `NSHostingController`. Toolbar **Connect** reads the device
+(~1 s) and **Backup…** saves a full flash image. The **Config** sidebar item edits
+per-mode LED (custom RGB / preset, live preview) and dial/button actions; **Macros**
+edits scripts. Non-sandboxed (direct HID access); macOS may prompt for
+USB/Input-Monitoring on first run.
 
 ## Status
 
