@@ -128,8 +128,8 @@ final class AppModel {
                 let dev = try RevOmateDevice()
                 let v = try dev.version()
                 var lastPct = -1
-                let img = try dev.dumpAll { done, total in
-                    let pct = done * 100 / total
+                let img = try dev.readConfigImage { done, total in
+                    let pct = done * 100 / max(total, 1)
                     if pct != lastPct && pct % 5 == 0 {
                         lastPct = pct
                         DispatchQueue.main.async { self?.progress = Double(pct) / 100 }
@@ -299,12 +299,33 @@ final class AppModel {
 
     // MARK: Backup
 
+    /// Full 2 MiB backup — reads the entire flash fresh (the connect read is sparse).
     func backup() {
-        guard let img = image else { return }
+        guard let dev = device, !isBusy else { return }
         let panel = NSSavePanel()
         panel.nameFieldStringValue = "revomate-backup.bin"
         guard panel.runModal() == .OK, let url = panel.url else { return }
-        do { try Data(img).write(to: url); append("✓ Backup saved: \(url.lastPathComponent)") }
-        catch { append("✗ Backup failed: \(error)") }
+        isBusy = true
+        progress = 0
+        append("Reading full 2 MiB flash for backup…")
+        io.async { [weak self] in
+            do {
+                var lastPct = -1
+                let full = try dev.dumpAll { done, total in
+                    let pct = done * 100 / total
+                    if pct != lastPct && pct % 5 == 0 {
+                        lastPct = pct
+                        DispatchQueue.main.async { self?.progress = Double(pct) / 100 }
+                    }
+                }
+                try Data(full).write(to: url)
+                DispatchQueue.main.async {
+                    self?.progress = nil; self?.isBusy = false
+                    self?.append("✓ Backup saved: \(url.lastPathComponent)")
+                }
+            } catch {
+                DispatchQueue.main.async { self?.progress = nil; self?.isBusy = false; self?.append("✗ Backup failed: \(error)") }
+            }
+        }
     }
 }
