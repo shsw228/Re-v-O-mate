@@ -1,6 +1,19 @@
 import AppKit
 import SwiftUI
 
+/// Entry point. Uses `@main` + a `@MainActor` `main()` (no top-level code) so it
+/// compiles in both script mode (`swift build`) and library mode (`-parse-as-library`,
+/// which Xcode app targets use), and constructs the @MainActor AppDelegate on the MainActor.
+@main
+enum RevOmateMain {
+    @MainActor static func main() {
+        let app = NSApplication.shared
+        let delegate = AppDelegate()
+        app.delegate = delegate
+        app.run()
+    }
+}
+
 private extension NSToolbarItem.Identifier {
     static let connect = NSToolbarItem.Identifier("connect")
     static let backup = NSToolbarItem.Identifier("backup")
