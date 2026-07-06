@@ -238,6 +238,12 @@ struct ConfigView: View {
                     Text("Script").frame(width: 84, alignment: .leading)
                     Picker("", selection: $model.buttonScriptNo) {
                         Text("None").tag(0)
+                        // Keep a tag for the currently-assigned script even before macros
+                        // finish loading, so the selection isn't shown blank / reset on save.
+                        if model.buttonScriptNo != 0,
+                           !model.scripts.contains(where: { $0.number == model.buttonScriptNo }) {
+                            Text("#\(model.buttonScriptNo) (loading…)").tag(model.buttonScriptNo)
+                        }
                         ForEach(model.scripts) { e in
                             Text("#\(e.number) \(e.commands.first?.describe ?? "")").tag(e.number)
                         }

@@ -31,6 +31,7 @@ public struct ConfigEditor: Sendable {
 
     public mutating func setModeLED(mode: Int, colorNo: UInt8, useCustomRGB: Bool,
                                     rgb: (UInt8, UInt8, UInt8), brightness: UInt8) {
+        guard (0..<FlashMap.modeCount).contains(mode) else { return }
         let b = baseModeAddr(mode)
         put(b + 23, colorNo)
         put(b + 24, useCustomRGB ? 1 : 0)
@@ -45,6 +46,7 @@ public struct ConfigEditor: Sendable {
 
     /// Use a preset color (0..8) for the mode LED instead of custom RGB.
     public mutating func setModeLEDPreset(mode: Int, colorNo: UInt8, brightness: UInt8) {
+        guard (0..<FlashMap.modeCount).contains(mode) else { return }
         let b = baseModeAddr(mode)
         put(b + 23, colorNo)
         put(b + 24, 0)          // color_flag = 0 => use preset
@@ -89,12 +91,16 @@ public struct ConfigEditor: Sendable {
                                    mode: ScriptInfo.Mode, name: String) -> Bool {
         let slot = FlashMap.scriptInfoAddress(number: number)
         let info = ScriptInfo(Array(image[Int(slot)..<Int(slot) + 0x110]))
-        guard info.address != 0 else { return false }
+        // Require a real, allocated data region (reject empty/erased slots: addr 0 or 0xFFFFFFFF).
+        guard !info.isEmpty, info.address != 0, info.address != 0xFFFF_FFFF else { return false }
 
         let newBytes = ScriptEncoder.encode(commands)
         let dataAddr = Int(info.address)
-        let clearLen = Swift.max(Int(info.size), newBytes.count)
-        for i in 0..<clearLen where dataAddr + i < image.count { image[dataAddr + i] = 0xFF }
+        let oldSize = info.size == 0xFFFF_FFFF ? 0 : Int(info.size)
+        let clearLen = Swift.max(oldSize, newBytes.count)
+        // Bound the rewrite to the flash image so a bad/oversized record can't run off the end.
+        guard dataAddr + clearLen <= image.count else { return false }
+        for i in 0..<clearLen { image[dataAddr + i] = 0xFF }
         put(info.address, newBytes)
 
         // Update info slot: size, mode, name (UTF-16LE, byte-length prefix).
@@ -109,18 +115,21 @@ public struct ConfigEditor: Sendable {
         return true
     }
 
-    /// Recompute Rec_Num (count of size>0 slots) and Total_Size in the script header.
+    /// Recompute Rec_Num (count of populated slots) and Total_Size in the script header.
     /// Check_SUM is left untouched (firmware does not appear to validate it).
     public mutating func refreshScriptHeader() {
         var count = 0
-        var total: UInt32 = 0
+        var total: UInt64 = 0   // accumulate wide to avoid UInt32 overflow trap
         for n in 1...FlashMap.scriptMax {
             let a = Int(FlashMap.scriptInfoAddress(number: n))
             let size = u32le(Array(image[(a + 4)..<(a + 8)]), 0)
-            if size > 0 { count += 1; total += size }
+            // Skip empty (0) and erased (0xFFFFFFFF) slots — same rule as ScriptInfo.isEmpty.
+            guard size != 0, size != 0xFFFF_FFFF else { continue }
+            count += 1
+            total += UInt64(size)
         }
         put(FlashMap.scriptHeader + 2, UInt8(min(count, 255)))
-        putU32LE(FlashMap.scriptHeader + 4, total)
+        putU32LE(FlashMap.scriptHeader + 4, UInt32(min(total, UInt64(UInt32.max))))
     }
 
     // MARK: Dial sensitivity (encoder), 1..100 per CW/CCW

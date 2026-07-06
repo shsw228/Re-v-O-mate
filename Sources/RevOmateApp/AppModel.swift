@@ -298,7 +298,9 @@ final class AppModel {
 
     func setOpcode(_ index: Int, _ opcode: ScriptOpcode) {
         guard scriptDraft.indices.contains(index) else { return }
-        scriptDraft[index] = ScriptCommand(opcode, scriptDraft[index].data)
+        // Reset parameters when the command type changes (don't reinterpret old bytes,
+        // e.g. a wait's ms high-byte becoming a keycode).
+        scriptDraft[index] = ScriptCommand(opcode)
     }
     func setCommandByte(_ index: Int, _ byteIndex: Int, _ value: UInt8) {
         guard scriptDraft.indices.contains(index), scriptDraft[index].data.indices.contains(byteIndex) else { return }

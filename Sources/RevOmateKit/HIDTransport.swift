@@ -48,6 +48,7 @@ public final class HIDTransport: @unchecked Sendable {
     private let ioQueue = DispatchQueue(label: "com.revomate.hid.io")  // serializes transactions
     private let respLock = NSCondition()
     private var response: [UInt8]?
+    private var awaitingResponse = false   // guards against unsolicited / late (post-timeout) reports
 
     public init() {}
 
@@ -120,8 +121,15 @@ public final class HIDTransport: @unchecked Sendable {
     private func handleInput(_ report: UnsafeMutablePointer<UInt8>, _ length: CFIndex) {
         let n = min(Int(length), HIDTransport.reportSize)
         respLock.lock()
-        response = Array(UnsafeBufferPointer(start: report, count: n))
-        respLock.signal()
+        // Only accept a report while a transaction is actively waiting for one, and only
+        // the first one. This drops unsolicited reports and late replies that arrive after
+        // a prior transaction timed out (which would otherwise be returned as the next
+        // command's answer).
+        if awaitingResponse, response == nil {
+            response = Array(UnsafeBufferPointer(start: report, count: n))
+            awaitingResponse = false
+            respLock.signal()
+        }
         respLock.unlock()
     }
 
@@ -139,29 +147,40 @@ public final class HIDTransport: @unchecked Sendable {
 
             respLock.lock()
             response = nil
+            awaitingResponse = true
             respLock.unlock()
 
             let r = out.withUnsafeBufferPointer { buf in
                 IOHIDDeviceSetReport(dev, kIOHIDReportTypeOutput, 0, buf.baseAddress!, HIDTransport.reportSize)
             }
-            guard r == kIOReturnSuccess else { throw HIDError.setReportFailed(r) }
+            guard r == kIOReturnSuccess else {
+                respLock.lock(); awaitingResponse = false; respLock.unlock()
+                throw HIDError.setReportFailed(r)
+            }
 
             respLock.lock()
             defer { respLock.unlock() }
             let deadline = Date().addingTimeInterval(timeout)
             while response == nil {
-                if !respLock.wait(until: deadline) { throw HIDError.timeout }
+                if !respLock.wait(until: deadline) {
+                    awaitingResponse = false   // stop accepting the (now stale) reply for this request
+                    throw HIDError.timeout
+                }
             }
             return response!
         }
     }
 
     public func close() {
-        if let rl = runLoop { CFRunLoopStop(rl) }
-        if let dev = device { IOHIDDeviceClose(dev, IOOptionBits(kIOHIDOptionsTypeNone)) }
-        if let mgr = manager { IOHIDManagerClose(mgr, IOOptionBits(kIOHIDOptionsTypeNone)) }
-        device = nil
-        manager = nil
-        runLoop = nil
+        // Run on ioQueue so device/manager teardown is serialized against any in-flight
+        // transact() (which reads `device` on the same queue) — avoids a data race / UAF.
+        ioQueue.sync {
+            if let rl = runLoop { CFRunLoopStop(rl) }
+            if let dev = device { IOHIDDeviceClose(dev, IOOptionBits(kIOHIDOptionsTypeNone)) }
+            if let mgr = manager { IOHIDManagerClose(mgr, IOOptionBits(kIOHIDOptionsTypeNone)) }
+            device = nil
+            manager = nil
+            runLoop = nil
+        }
     }
 }

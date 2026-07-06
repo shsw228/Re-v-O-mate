@@ -33,12 +33,15 @@ public final class RevOmateDevice: @unchecked Sendable {
         cmd.append(UInt8(length))
 
         let resp = try transport.transact(cmd)
-        guard resp.first == Command.flashRead else {
-            throw HIDError.badResponse("flashRead echo missing")
+        guard resp.count >= 2, resp[0] == Command.flashRead else {
+            throw HIDError.badResponse("flashRead echo missing / short report (\(resp.count) B)")
         }
         let n = Int(resp[1])
         guard n == length else {
             throw HIDError.badResponse("flashRead len \(n) != requested \(length) (NG / out of range?)")
+        }
+        guard resp.count >= 2 + n else {
+            throw HIDError.badResponse("flashRead short report: \(resp.count) B for \(n) payload")
         }
         return Array(resp[2..<(2 + n)])
     }

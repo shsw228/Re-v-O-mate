@@ -205,6 +205,9 @@ do {
               let r = UInt8(args[2]), let g = UInt8(args[3]), let b = UInt8(args[4]) else {
             err("usage: revomate set-led <mode 0-2> <r 0-100> <g> <b> [brightness 0-2]"); exit(2)
         }
+        guard (0..<FlashMap.modeCount).contains(mode) else { err("mode must be 0..\(FlashMap.modeCount - 1)"); exit(2) }
+        guard r <= 100, g <= 100, b <= 100 else { err("RGB must be 0..100"); exit(2) }
+        guard args.count < 6 || (UInt8(args[5]).map { $0 <= 2 } ?? false) else { err("brightness must be 0..2"); exit(2) }
         let bright = args.count >= 6 ? (UInt8(args[5]) ?? 1) : 1
         let dev = try RevOmateDevice(); defer { dev.close() }
         err("Reading current flash…")
