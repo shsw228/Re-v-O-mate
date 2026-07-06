@@ -1,5 +1,5 @@
-import SwiftUI
 import RevOmateKit
+import SwiftUI
 
 // MARK: - Sidebar (hosted in the AppKit split view's sidebar pane)
 
@@ -146,7 +146,9 @@ struct ConfigView: View {
                     .pickerStyle(.segmented).labelsHidden().frame(width: 200)
                     .onChange(of: model.ledUseCustom) { model.previewLED() }
                     Spacer()
-                    Button { model.saveLED() } label: {
+                    Button {
+                        model.saveLED()
+                    } label: {
                         Label("Save LED", systemImage: "square.and.arrow.down")
                     }
                     .buttonStyle(.borderedProminent).disabled(model.isBusy)
@@ -159,7 +161,9 @@ struct ConfigView: View {
                     HStack {
                         Text("Color").frame(width: 84, alignment: .leading)
                         Picker("", selection: $model.ledPreset) {
-                            ForEach(0..<AppModel.presetNames.count, id: \.self) { Text(AppModel.presetNames[$0]).tag($0) }
+                            ForEach(0..<AppModel.presetNames.count, id: \.self) {
+                                Text(AppModel.presetNames[$0]).tag($0)
+                            }
                         }
                         .labelsHidden().frame(width: 160)
                         .onChange(of: model.ledPreset) { model.previewLED() }
@@ -229,7 +233,9 @@ struct ConfigView: View {
                     Label("Applies after a mode switch / reconnect.", systemImage: "info.circle")
                         .font(.caption).foregroundStyle(.secondary)
                     Spacer()
-                    Button { model.saveDialFunction() } label: {
+                    Button {
+                        model.saveDialFunction()
+                    } label: {
                         Label("Save dial function", systemImage: "square.and.arrow.down")
                     }
                     .buttonStyle(.borderedProminent).disabled(model.isBusy)
@@ -254,7 +260,8 @@ struct ConfigView: View {
                         // Keep a tag for the currently-assigned script even before macros
                         // finish loading, so the selection isn't shown blank / reset on save.
                         if model.buttonScriptNo != 0,
-                           !model.scripts.contains(where: { $0.number == model.buttonScriptNo }) {
+                            !model.scripts.contains(where: { $0.number == model.buttonScriptNo })
+                        {
                             Text("#\(model.buttonScriptNo) (loading…)").tag(model.buttonScriptNo)
                         }
                         ForEach(model.scripts) { e in
@@ -268,10 +275,14 @@ struct ConfigView: View {
                 }
                 actionRow("Action", icon: "bolt.fill", draft: $model.buttonDraft)
                 HStack {
-                    Label("Runs its script if set, else special func, else the direct action.", systemImage: "info.circle")
-                        .font(.caption).foregroundStyle(.secondary)
+                    Label(
+                        "Runs its script if set, else special func, else the direct action.", systemImage: "info.circle"
+                    )
+                    .font(.caption).foregroundStyle(.secondary)
                     Spacer()
-                    Button { model.saveButton() } label: {
+                    Button {
+                        model.saveButton()
+                    } label: {
                         Label("Save button", systemImage: "square.and.arrow.down")
                     }
                     .buttonStyle(.borderedProminent).disabled(model.isBusy)
@@ -319,8 +330,9 @@ struct MacrosView: View {
 
     var body: some View {
         if model.scripts.isEmpty {
-            ContentUnavailableView("No scripts", systemImage: "wand.and.stars",
-                                   description: Text("This device has no stored macros (still loading, or none)."))
+            ContentUnavailableView(
+                "No scripts", systemImage: "wand.and.stars",
+                description: Text("This device has no stored macros (still loading, or none)."))
         } else {
             VStack(alignment: .leading, spacing: 0) {
                 scriptForm
@@ -392,33 +404,66 @@ struct MacrosView: View {
         case .mouseScrollUp, .mouseScrollDown: return "scroll"
         case .mouseMove: return "cursorarrow.motionlines"
         case .joyBtnPress, .joyBtnRelease, .joyHatPress, .joyHatRelease,
-             .joyLLever, .joyRLever, .joyLLeverCenter, .joyRLeverCenter: return "gamecontroller"
-        default: return "cursorarrow.click"   // mouse buttons
+            .joyLLever, .joyRLever, .joyLLeverCenter, .joyRLeverCenter:
+            return "gamecontroller"
+        default: return "cursorarrow.click"  // mouse buttons
         }
     }
 
     private var commandBar: some View {
         HStack {
             Menu {
-                Button { model.addCommand(.keyPress) } label: { Label("Key press", systemImage: "keyboard") }
-                Button { model.addCommand(.keyRelease) } label: { Label("Key release", systemImage: "keyboard") }
-                Button { model.addCommand(.wait) } label: { Label("Wait", systemImage: "clock") }
-                Button { model.addCommand(.mousePressL) } label: { Label("Mouse L press", systemImage: "cursorarrow.click") }
-                Button { model.addCommand(.mouseReleaseL) } label: { Label("Mouse L release", systemImage: "cursorarrow.click") }
-                Button { model.addCommand(.mouseScrollUp) } label: { Label("Scroll up", systemImage: "arrow.up") }
-                Button { model.addCommand(.mouseScrollDown) } label: { Label("Scroll down", systemImage: "arrow.down") }
+                Button {
+                    model.addCommand(.keyPress)
+                } label: {
+                    Label("Key press", systemImage: "keyboard")
+                }
+                Button {
+                    model.addCommand(.keyRelease)
+                } label: {
+                    Label("Key release", systemImage: "keyboard")
+                }
+                Button {
+                    model.addCommand(.wait)
+                } label: {
+                    Label("Wait", systemImage: "clock")
+                }
+                Button {
+                    model.addCommand(.mousePressL)
+                } label: {
+                    Label("Mouse L press", systemImage: "cursorarrow.click")
+                }
+                Button {
+                    model.addCommand(.mouseReleaseL)
+                } label: {
+                    Label("Mouse L release", systemImage: "cursorarrow.click")
+                }
+                Button {
+                    model.addCommand(.mouseScrollUp)
+                } label: {
+                    Label("Scroll up", systemImage: "arrow.up")
+                }
+                Button {
+                    model.addCommand(.mouseScrollDown)
+                } label: {
+                    Label("Scroll down", systemImage: "arrow.down")
+                }
             } label: {
                 Label("Add", systemImage: "plus")
             }
             .menuStyle(.borderlessButton).fixedSize()
-            Button { if !model.scriptDraft.isEmpty { model.deleteCommand(at: [model.scriptDraft.count - 1]) } } label: {
+            Button {
+                if !model.scriptDraft.isEmpty { model.deleteCommand(at: [model.scriptDraft.count - 1]) }
+            } label: {
                 Label("Delete last", systemImage: "minus")
             }
             .disabled(model.scriptDraft.isEmpty)
             Spacer()
             Label("Reconnect the device to run edited macros.", systemImage: "info.circle")
                 .font(.caption).foregroundStyle(.secondary)
-            Button { model.saveScript() } label: {
+            Button {
+                model.saveScript()
+            } label: {
                 Label("Save script", systemImage: "square.and.arrow.down")
             }
             .buttonStyle(.borderedProminent).disabled(model.isBusy)
@@ -427,8 +472,9 @@ struct MacrosView: View {
     }
 
     private var scriptSelection: Binding<Int> {
-        Binding(get: { model.selectedScriptNumber ?? -1 },
-                set: { model.selectScript($0 == -1 ? nil : $0) })
+        Binding(
+            get: { model.selectedScriptNumber ?? -1 },
+            set: { model.selectScript($0 == -1 ? nil : $0) })
     }
 
     private func scriptLabel(_ e: ConfigImage.ScriptEntry) -> Text {
@@ -472,9 +518,11 @@ struct MacrosView: View {
             .labelsHidden()
         case .wait:
             let ms = UInt16(cmd.data[0]) << 8 | UInt16(cmd.data[1])
-            Stepper("\(ms) ms", value: Binding(
-                get: { Int(ms) }, set: { model.setWaitMs(index, UInt16(max(0, min(65535, $0)))) }
-            ), in: 0...65535, step: 10)
+            Stepper(
+                "\(ms) ms",
+                value: Binding(
+                    get: { Int(ms) }, set: { model.setWaitMs(index, UInt16(max(0, min(65535, $0)))) }
+                ), in: 0...65535, step: 10)
         default:
             Text(cmd.data.isEmpty ? "—" : cmd.data.hexString).foregroundStyle(.secondary)
         }

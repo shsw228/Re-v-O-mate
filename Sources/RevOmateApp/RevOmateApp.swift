@@ -91,15 +91,18 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSToolbarDelegate {
         let appItem = NSMenuItem()
         mainMenu.addItem(appItem)
         let appMenu = NSMenu()
-        appMenu.addItem(withTitle: "Quit Re-v-O-mate", action: #selector(NSApplication.terminate(_:)), keyEquivalent: "q")
+        appMenu.addItem(
+            withTitle: "Quit Re-v-O-mate", action: #selector(NSApplication.terminate(_:)), keyEquivalent: "q")
         appItem.submenu = appMenu
         NSApp.mainMenu = mainMenu
     }
 
     // MARK: NSToolbarDelegate
 
-    func toolbar(_ toolbar: NSToolbar, itemForItemIdentifier id: NSToolbarItem.Identifier,
-                 willBeInsertedIntoToolbar flag: Bool) -> NSToolbarItem? {
+    func toolbar(
+        _ toolbar: NSToolbar, itemForItemIdentifier id: NSToolbarItem.Identifier,
+        willBeInsertedIntoToolbar flag: Bool
+    ) -> NSToolbarItem? {
         switch id {
         case .connect:
             return button(id, label: "Connect", symbol: "cable.connector", action: #selector(connect))
@@ -117,7 +120,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSToolbarDelegate {
         [.connect, .backup]
     }
 
-    private func button(_ id: NSToolbarItem.Identifier, label: String, symbol: String, action: Selector) -> NSToolbarItem {
+    private func button(
+        _ id: NSToolbarItem.Identifier, label: String, symbol: String, action: Selector
+    ) -> NSToolbarItem {
         let item = NSToolbarItem(itemIdentifier: id)
         item.label = label
         item.image = NSImage(systemSymbolName: symbol, accessibilityDescription: label)

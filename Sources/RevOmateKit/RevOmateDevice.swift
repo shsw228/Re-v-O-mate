@@ -47,8 +47,10 @@ public final class RevOmateDevice: @unchecked Sendable {
     }
 
     /// Read an arbitrary range by chunking into 62-byte reads.
-    public func readRange(address: UInt32, count: Int,
-                          progress: ((_ done: Int, _ total: Int) -> Void)? = nil) throws -> [UInt8] {
+    public func readRange(
+        address: UInt32, count: Int,
+        progress: ((_ done: Int, _ total: Int) -> Void)? = nil
+    ) throws -> [UInt8] {
         var out = [UInt8]()
         out.reserveCapacity(count)
         var addr = address
@@ -84,8 +86,10 @@ public final class RevOmateDevice: @unchecked Sendable {
 
     /// Phase 2: fill in the script header + info table + each populated script's data,
     /// returning an updated image. Run after `readConfig` to populate the Macros tab.
-    public func readScripts(into base: [UInt8],
-                            progress: ((_ done: Int, _ total: Int) -> Void)? = nil) throws -> [UInt8] {
+    public func readScripts(
+        into base: [UInt8],
+        progress: ((_ done: Int, _ total: Int) -> Void)? = nil
+    ) throws -> [UInt8] {
         var img = base
         let infoEnd = Int(FlashMap.scriptInfoAddress(number: FlashMap.scriptMax) + FlashMap.scriptInfoStride)
         let headerToInfo = infoEnd - Int(FlashMap.scriptHeader)
@@ -130,8 +134,10 @@ public final class RevOmateDevice: @unchecked Sendable {
     /// Write a contiguous region, chunking into ≤58-byte writes that never cross a
     /// 256-byte page boundary (M25P16 page-program wraps within a page otherwise).
     /// The target range MUST already be erased (sector erase leaves 0xFF).
-    public func writeRegion(address: UInt32, data: [UInt8],
-                            progress: ((_ done: Int, _ total: Int) -> Void)? = nil) throws {
+    public func writeRegion(
+        address: UInt32, data: [UInt8],
+        progress: ((_ done: Int, _ total: Int) -> Void)? = nil
+    ) throws {
         var addr = address
         var i = 0
         while i < data.count {
@@ -165,8 +171,10 @@ public final class RevOmateDevice: @unchecked Sendable {
     /// Restore a full 2 MiB image, touching only sectors that differ from the device.
     /// Pass `baseline` (a known-current image, e.g. from a preceding `dumpAll`) to
     /// diff in memory and skip re-reading every sector. Returns restored sector addresses.
-    public func restoreImage(_ image: [UInt8], baseline: [UInt8]? = nil,
-                             progress: ((_ sector: Int, _ total: Int, _ changed: Bool) -> Void)? = nil) throws -> [UInt32] {
+    public func restoreImage(
+        _ image: [UInt8], baseline: [UInt8]? = nil,
+        progress: ((_ sector: Int, _ total: Int, _ changed: Bool) -> Void)? = nil
+    ) throws -> [UInt32] {
         precondition(image.count == FlashMap.totalSize)
         precondition(baseline == nil || baseline!.count == FlashMap.totalSize)
         var restored: [UInt32] = []
@@ -175,8 +183,11 @@ public final class RevOmateDevice: @unchecked Sendable {
             let addr = UInt32(lo)
             let want = Array(image[lo..<hi])
             let have: [UInt8]
-            if let baseline { have = Array(baseline[lo..<hi]) }
-            else { have = try readRange(address: addr, count: FlashMap.sectorSize) }
+            if let baseline {
+                have = Array(baseline[lo..<hi])
+            } else {
+                have = try readRange(address: addr, count: FlashMap.sectorSize)
+            }
             let changed = have != want
             if changed {
                 try restoreSector(address: addr, data: want)
@@ -194,8 +205,10 @@ public final class RevOmateDevice: @unchecked Sendable {
     /// 0..100 duty; brightness is a level 0..2. Not necessarily persisted per-mode.
     public func setLEDLive(r: UInt8, g: UInt8, b: UInt8, brightness: UInt8) throws {
         let ledDataNum: UInt8 = 3
-        let resp = try transport.transact([Command.ledSet, ledDataNum, brightness,
-                                           min(r, 100), min(g, 100), min(b, 100)])
+        let resp = try transport.transact([
+            Command.ledSet, ledDataNum, brightness,
+            min(r, 100), min(g, 100), min(b, 100),
+        ])
         guard resp.first == Command.ledSet, resp.count > 1, resp[1] == 0x00 else {
             throw HIDError.badResponse("setLEDLive NG")
         }

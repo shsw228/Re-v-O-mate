@@ -14,9 +14,9 @@ import Foundation
 
 /// ST_SCRIPT_HEAD @ 0x010000 (8 bytes).
 public struct ScriptHeader: Sendable {
-    public var checksum: UInt16      // Check_SUM (algorithm TBD, spec §7-9)
-    public var recordCount: UInt8    // Rec_Num
-    public var totalSize: UInt32     // Script_Total_Size
+    public var checksum: UInt16  // Check_SUM (algorithm TBD, spec §7-9)
+    public var recordCount: UInt8  // Rec_Num
+    public var totalSize: UInt32  // Script_Total_Size
 
     public init(_ bytes: [UInt8]) {
         precondition(bytes.count >= 8)
@@ -29,11 +29,11 @@ public struct ScriptHeader: Sendable {
 /// ST_BASE_HEAD @ 0x000000 (8 bytes).
 public struct BaseHeader: Sendable {
     public var mode: UInt8
-    public var ledSleepDisabled: UInt8   // 0=sleep enabled, 1=disabled
-    public var ledLightMode: UInt8       // 0=on,1=off
-    public var ledLightFunc: UInt8       // 0=on,1=slow fade,2=flash
-    public var ledOffTimeSec: UInt8      // default 60, max 180
-    public var encoderTypematic: UInt8   // 0=repeat, 1=hold
+    public var ledSleepDisabled: UInt8  // 0=sleep enabled, 1=disabled
+    public var ledLightMode: UInt8  // 0=on,1=off
+    public var ledLightFunc: UInt8  // 0=on,1=slow fade,2=flash
+    public var ledOffTimeSec: UInt8  // default 60, max 180
+    public var encoderTypematic: UInt8  // 0=repeat, 1=hold
 
     public init(_ bytes: [UInt8]) {
         precondition(bytes.count >= 6)
@@ -51,8 +51,8 @@ public struct ScriptInfo: Sendable {
     public enum Mode: UInt8, Sendable {
         case oneShot = 0, loop = 1, fire = 2, hold = 3
     }
-    public var address: UInt32       // Script_Adress (in data region)
-    public var size: UInt32          // Script_Size
+    public var address: UInt32  // Script_Adress (in data region)
+    public var size: UInt32  // Script_Size
     public var mode: Mode?
     public var name: String
 
@@ -61,7 +61,7 @@ public struct ScriptInfo: Sendable {
         address = u32le(bytes, 0)
         size = u32le(bytes, 4)
         mode = Mode(rawValue: bytes[8])
-        let nameLen = bytes[9] == 0xFF ? 0 : Int(bytes[9])   // UTF-16LE, byte length
+        let nameLen = bytes[9] == 0xFF ? 0 : Int(bytes[9])  // UTF-16LE, byte length
         let end = min(10 + nameLen, bytes.count)
         var scalars = [UInt16]()
         var i = 10

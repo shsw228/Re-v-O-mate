@@ -1,7 +1,7 @@
-import Foundation
-import SwiftUI
 import AppKit
+import Foundation
 import RevOmateKit
+import SwiftUI
 
 @MainActor
 @Observable
@@ -17,7 +17,7 @@ final class AppModel {
     var version: String?
     var log: [String] = []
     var isBusy = false
-    var progress: Double?          // 0..1 during long reads
+    var progress: Double?  // 0..1 during long reads
 
     var statusText: String {
         switch status {
@@ -42,7 +42,7 @@ final class AppModel {
     var ledB = 0.0
     var ledBrightness = 1
     var ledUseCustom = true
-    var ledPreset = 0   // 0..8
+    var ledPreset = 0  // 0..8
 
     /// Editable action supporting None / Keyboard / mouse move+scroll / no-payload types.
     struct ActionDraft {
@@ -66,11 +66,17 @@ final class AppModel {
             switch typeRaw {
             case 0: return .none
             case 9: return .keyboard(modifiers, [key], sense: sense)
-            case 7: return ActionRecord(type: SetType(7),
-                                        payload: [0, UInt8(bitPattern: Int8(clamping: moveX)),
-                                                  UInt8(bitPattern: Int8(clamping: moveY)), 0, 0, 0], sense: sense)
-            case 8: return ActionRecord(type: SetType(8),
-                                        payload: [0, 0, 0, UInt8(bitPattern: Int8(clamping: wheel)), 0, 0], sense: sense)
+            case 7:
+                return ActionRecord(
+                    type: SetType(7),
+                    payload: [
+                        0, UInt8(bitPattern: Int8(clamping: moveX)),
+                        UInt8(bitPattern: Int8(clamping: moveY)), 0, 0, 0,
+                    ], sense: sense)
+            case 8:
+                return ActionRecord(
+                    type: SetType(8),
+                    payload: [0, 0, 0, UInt8(bitPattern: Int8(clamping: wheel)), 0, 0], sense: sense)
             default: return ActionRecord(type: SetType(typeRaw), payload: [], sense: sense)
             }
         }
@@ -121,8 +127,11 @@ final class AppModel {
 
     var ledSwatch: Color {
         let rgb: (Double, Double, Double)
-        if ledUseCustom { rgb = (ledR, ledG, ledB) }
-        else { let p = Self.presetRGB[min(ledPreset, 8)]; rgb = (Double(p.0), Double(p.1), Double(p.2)) }
+        if ledUseCustom {
+            rgb = (ledR, ledG, ledB)
+        } else {
+            let p = Self.presetRGB[min(ledPreset, 8)]; rgb = (Double(p.0), Double(p.1), Double(p.2))
+        }
         return Color(red: rgb.0 / 100, green: rgb.1 / 100, blue: rgb.2 / 100)
     }
 
@@ -212,11 +221,14 @@ final class AppModel {
                     guard let self else { return }
                     self.image = newImage
                     self.config = ConfigImage(newImage)
-                    self.append("✓ Saved — \(restored.count) sector(s)." + (reconnectHint ? " Reconnect to apply." : ""))
+                    self.append(
+                        "✓ Saved — \(restored.count) sector(s)." + (reconnectHint ? " Reconnect to apply." : ""))
                     self.isBusy = false
                 }
             } catch {
-                DispatchQueue.main.async { self?.append("✗ Save failed: \(error)"); self?.isBusy = false }
+                DispatchQueue.main.async {
+                    self?.append("✗ Save failed: \(error)"); self?.isBusy = false
+                }
             }
         }
     }
@@ -227,7 +239,8 @@ final class AppModel {
     private var ledScheduled = false
 
     func previewLED() {
-        let rgb: (UInt8, UInt8, UInt8) = ledUseCustom
+        let rgb: (UInt8, UInt8, UInt8) =
+            ledUseCustom
             ? (UInt8(ledR), UInt8(ledG), UInt8(ledB))
             : Self.presetRGB[min(ledPreset, 8)]
         ledLatest = (rgb.0, rgb.1, rgb.2, UInt8(ledBrightness))
@@ -253,8 +266,9 @@ final class AppModel {
         guard let img = image else { return }
         var editor = ConfigEditor(img)
         if ledUseCustom {
-            editor.setModeLED(mode: selectedMode, colorNo: 0, useCustomRGB: true,
-                              rgb: (UInt8(ledR), UInt8(ledG), UInt8(ledB)), brightness: UInt8(ledBrightness))
+            editor.setModeLED(
+                mode: selectedMode, colorNo: 0, useCustomRGB: true,
+                rgb: (UInt8(ledR), UInt8(ledG), UInt8(ledB)), brightness: UInt8(ledBrightness))
         } else {
             editor.setModeLEDPreset(mode: selectedMode, colorNo: UInt8(ledPreset), brightness: UInt8(ledBrightness))
         }
@@ -347,7 +361,9 @@ final class AppModel {
                     self?.append("✓ Backup saved: \(url.lastPathComponent)")
                 }
             } catch {
-                DispatchQueue.main.async { self?.progress = nil; self?.isBusy = false; self?.append("✗ Backup failed: \(error)") }
+                DispatchQueue.main.async {
+                    self?.progress = nil; self?.isBusy = false; self?.append("✗ Backup failed: \(error)")
+                }
             }
         }
     }

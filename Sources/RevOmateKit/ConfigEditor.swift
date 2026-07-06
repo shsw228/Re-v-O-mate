@@ -29,8 +29,10 @@ public struct ConfigEditor: Sendable {
 
     // MARK: Per-mode LED
 
-    public mutating func setModeLED(mode: Int, colorNo: UInt8, useCustomRGB: Bool,
-                                    rgb: (UInt8, UInt8, UInt8), brightness: UInt8) {
+    public mutating func setModeLED(
+        mode: Int, colorNo: UInt8, useCustomRGB: Bool,
+        rgb: (UInt8, UInt8, UInt8), brightness: UInt8
+    ) {
         guard (0..<FlashMap.modeCount).contains(mode) else { return }
         let b = baseModeAddr(mode)
         put(b + 23, colorNo)
@@ -49,7 +51,7 @@ public struct ConfigEditor: Sendable {
         guard (0..<FlashMap.modeCount).contains(mode) else { return }
         let b = baseModeAddr(mode)
         put(b + 23, colorNo)
-        put(b + 24, 0)          // color_flag = 0 => use preset
+        put(b + 24, 0)  // color_flag = 0 => use preset
         put(b + 28, brightness)
     }
 
@@ -67,12 +69,12 @@ public struct ConfigEditor: Sendable {
 
     /// Assign a script number (1-based; 0 = none) to a button, stored in base-mode info.
     public mutating func setButtonScript(mode: Int, sw s: Int, scriptNo: UInt8) {
-        put(baseModeAddr(mode) + UInt32(s), scriptNo)          // sw_exe_script_no[s] @ +0..10
+        put(baseModeAddr(mode) + UInt32(s), scriptNo)  // sw_exe_script_no[s] @ +0..10
     }
 
     /// Assign a special-function number (0 = none) to a button.
     public mutating func setButtonSpecialFunc(mode: Int, sw s: Int, funcNo: UInt8) {
-        put(baseModeAddr(mode) + 11 + UInt32(s), funcNo)       // sw_sp_func_no[s] @ +11..21
+        put(baseModeAddr(mode) + 11 + UInt32(s), funcNo)  // sw_sp_func_no[s] @ +11..21
     }
 
     // MARK: Scripts (macros)
@@ -87,8 +89,10 @@ public struct ConfigEditor: Sendable {
     /// address must be non-zero). Assumes the new bytes fit in the script's sector.
     /// Returns false if the slot has no allocated data region.
     @discardableResult
-    public mutating func setScript(number: Int, commands: [ScriptCommand],
-                                   mode: ScriptInfo.Mode, name: String) -> Bool {
+    public mutating func setScript(
+        number: Int, commands: [ScriptCommand],
+        mode: ScriptInfo.Mode, name: String
+    ) -> Bool {
         let slot = FlashMap.scriptInfoAddress(number: number)
         let info = ScriptInfo(Array(image[Int(slot)..<Int(slot) + 0x110]))
         // Require a real, allocated data region (reject empty/erased slots: addr 0 or 0xFFFFFFFF).
@@ -119,7 +123,7 @@ public struct ConfigEditor: Sendable {
     /// Check_SUM is left untouched (firmware does not appear to validate it).
     public mutating func refreshScriptHeader() {
         var count = 0
-        var total: UInt64 = 0   // accumulate wide to avoid UInt32 overflow trap
+        var total: UInt64 = 0  // accumulate wide to avoid UInt32 overflow trap
         for n in 1...FlashMap.scriptMax {
             let a = Int(FlashMap.scriptInfoAddress(number: n))
             let size = u32le(Array(image[(a + 4)..<(a + 8)]), 0)
@@ -136,7 +140,7 @@ public struct ConfigEditor: Sendable {
 
     public mutating func setDialSensitivity(mode: Int, func f: Int, cw: UInt8, ccw: UInt8) {
         let b = functionAddr(mode: mode, func: f)
-        put(b + 7, cw.clamped(1, 100))    // CW action record, byte 7
+        put(b + 7, cw.clamped(1, 100))  // CW action record, byte 7
         put(b + 15, ccw.clamped(1, 100))  // CCW action record, byte 7
     }
 

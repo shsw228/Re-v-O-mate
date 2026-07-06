@@ -7,7 +7,7 @@ public struct FunctionInfo: Sendable {
     public var cw: ActionRecord
     public var ccw: ActionRecord
     public var ledColorNo: UInt8
-    public var ledColorFlag: UInt8      // 0=preset, 1=custom RGB
+    public var ledColorFlag: UInt8  // 0=preset, 1=custom RGB
     public var ledRGB: (UInt8, UInt8, UInt8)
     public var ledBrightness: UInt8
 
@@ -54,7 +54,7 @@ public struct SwFuncRecord: Sendable {
 public struct EncoderScriptInfo: Sendable {
     public var recordCount: UInt8
     public var loop: Bool
-    public var scriptNumbers: [UInt8]   // up to 32; trimmed to recordCount
+    public var scriptNumbers: [UInt8]  // up to 32; trimmed to recordCount
 
     public init(_ bytes: ArraySlice<UInt8>) {
         let b = Array(bytes)
@@ -71,13 +71,13 @@ public struct EncoderScriptInfo: Sendable {
 // against the C# source (values like 0x97/0x98 seen in real dumps).
 
 public struct BaseModeInfo: Sendable {
-    public var swExeScriptNo: [UInt8]   // bytes 0..10
-    public var swSpFuncNo: [UInt8]      // bytes 11..21
-    public var encoderFuncNo: UInt8     // byte 22
-    public var ledColorNo: UInt8        // byte 23
-    public var ledColorFlag: UInt8      // byte 24
+    public var swExeScriptNo: [UInt8]  // bytes 0..10
+    public var swSpFuncNo: [UInt8]  // bytes 11..21
+    public var encoderFuncNo: UInt8  // byte 22
+    public var ledColorNo: UInt8  // byte 23
+    public var ledColorFlag: UInt8  // byte 24
     public var ledRGB: (UInt8, UInt8, UInt8)  // bytes 25..27
-    public var ledBrightness: UInt8     // byte 28
+    public var ledBrightness: UInt8  // byte 28
 
     public init(_ bytes: ArraySlice<UInt8>) {
         let b = Array(bytes)
@@ -95,7 +95,7 @@ public struct BaseModeInfo: Sendable {
     /// (0 = unassigned). This is how buttons get behavior in the base-mode info — distinct
     /// from a direct action stored in the SW function record.
     public struct ButtonAssignment: Sendable {
-        public let sw: Int          // 1-based
+        public let sw: Int  // 1-based
         public let scriptNo: UInt8  // 0 = none
         public let specialFuncNo: UInt8
     }
@@ -116,12 +116,12 @@ public struct BaseModeInfo: Sendable {
 public struct ConfigImage: Sendable {
     public var base: BaseHeader
     public var modes: [BaseModeInfo]
-    public var functions: [FunctionInfo]        // 12 = 3 modes x 4 funcs
-    public var functionNames: [String]          // 12
+    public var functions: [FunctionInfo]  // 12 = 3 modes x 4 funcs
+    public var functionNames: [String]  // 12
     public var encoderScripts: [EncoderScriptInfo]  // 3
-    public var swFunctions: [SwFuncRecord]      // 33 = 3 modes x 11
+    public var swFunctions: [SwFuncRecord]  // 33 = 3 modes x 11
     public var scriptHeader: ScriptHeader
-    public var scripts: [ScriptEntry]           // non-empty entries only (size > 0)
+    public var scripts: [ScriptEntry]  // non-empty entries only (size > 0)
 
     /// A populated script slot: its 1-based number, info record, and decoded commands.
     public struct ScriptEntry: Sendable, Identifiable {

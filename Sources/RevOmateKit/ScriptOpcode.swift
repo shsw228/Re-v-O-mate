@@ -6,32 +6,32 @@ import Foundation
 /// data length is fixed per opcode. For 2-byte data the FIRST byte is the high
 /// byte (big-endian within the command, e.g. WAIT ms).
 public enum ScriptOpcode: UInt8, CaseIterable, Sendable {
-    case wait            = 0x70   // 2: delay ms
-    case keyPress        = 0x41   // 1: HID keycode
-    case keyRelease      = 0x40   // 1
-    case multiPress      = 0x43   // 1: modifier / multimedia
-    case multiRelease    = 0x42   // 1
-    case mousePressL     = 0x29   // 0
-    case mouseReleaseL   = 0x21   // 0
-    case mousePressR     = 0x2A   // 0
-    case mouseReleaseR   = 0x22   // 0
-    case mousePressW     = 0x2C   // 0
-    case mouseReleaseW   = 0x24   // 0
-    case mousePressB4    = 0x2D   // 0
-    case mouseReleaseB4  = 0x25   // 0
-    case mousePressB5    = 0x2E   // 0
-    case mouseReleaseB5  = 0x26   // 0
-    case mouseScrollUp   = 0x31   // 1
-    case mouseScrollDown = 0x32   // 1
-    case mouseMove       = 0x33   // 2: X(hi), Y(lo) relative
-    case joyBtnPress     = 0x69   // 1: button id 0..12
-    case joyBtnRelease   = 0x61   // 1
-    case joyHatPress     = 0x6A   // 1: dir 0..7
-    case joyHatRelease   = 0x62   // 1
-    case joyLLever       = 0x6B   // 2
-    case joyLLeverCenter = 0x63   // 0
-    case joyRLever       = 0x6C   // 2
-    case joyRLeverCenter = 0x64   // 0
+    case wait = 0x70  // 2: delay ms
+    case keyPress = 0x41  // 1: HID keycode
+    case keyRelease = 0x40  // 1
+    case multiPress = 0x43  // 1: modifier / multimedia
+    case multiRelease = 0x42  // 1
+    case mousePressL = 0x29  // 0
+    case mouseReleaseL = 0x21  // 0
+    case mousePressR = 0x2A  // 0
+    case mouseReleaseR = 0x22  // 0
+    case mousePressW = 0x2C  // 0
+    case mouseReleaseW = 0x24  // 0
+    case mousePressB4 = 0x2D  // 0
+    case mouseReleaseB4 = 0x25  // 0
+    case mousePressB5 = 0x2E  // 0
+    case mouseReleaseB5 = 0x26  // 0
+    case mouseScrollUp = 0x31  // 1
+    case mouseScrollDown = 0x32  // 1
+    case mouseMove = 0x33  // 2: X(hi), Y(lo) relative
+    case joyBtnPress = 0x69  // 1: button id 0..12
+    case joyBtnRelease = 0x61  // 1
+    case joyHatPress = 0x6A  // 1: dir 0..7
+    case joyHatRelease = 0x62  // 1
+    case joyLLever = 0x6B  // 2
+    case joyLLeverCenter = 0x63  // 0
+    case joyRLever = 0x6C  // 2
+    case joyRLeverCenter = 0x64  // 0
 
     /// Number of data bytes that follow this opcode.
     public var dataLength: Int {
@@ -39,8 +39,8 @@ public enum ScriptOpcode: UInt8, CaseIterable, Sendable {
         case .wait, .mouseMove, .joyLLever, .joyRLever:
             return 2
         case .keyPress, .keyRelease, .multiPress, .multiRelease,
-             .mouseScrollUp, .mouseScrollDown,
-             .joyBtnPress, .joyBtnRelease, .joyHatPress, .joyHatRelease:
+            .mouseScrollUp, .mouseScrollDown,
+            .joyBtnPress, .joyBtnRelease, .joyHatPress, .joyHatRelease:
             return 1
         default:
             return 0

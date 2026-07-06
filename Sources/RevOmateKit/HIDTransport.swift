@@ -32,10 +32,10 @@ public enum HIDError: Error, CustomStringConvertible {
 /// exactly one IN report, delivered via an input-report callback pumped on a
 /// dedicated run-loop thread.
 public final class HIDTransport: @unchecked Sendable {
-    public static let vendorID  = 0x22EA
+    public static let vendorID = 0x22EA
     public static let productID = 0x004B
     public static let usagePage = 0xFF00
-    public static let usage     = 0x01
+    public static let usage = 0x01
     public static let reportSize = 64
 
     private var manager: IOHIDManager?
@@ -48,7 +48,7 @@ public final class HIDTransport: @unchecked Sendable {
     private let ioQueue = DispatchQueue(label: "com.revomate.hid.io")  // serializes transactions
     private let respLock = NSCondition()
     private var response: [UInt8]?
-    private var awaitingResponse = false   // guards against unsolicited / late (post-timeout) reports
+    private var awaitingResponse = false  // guards against unsolicited / late (post-timeout) reports
 
     public init() {}
 
@@ -83,8 +83,8 @@ public final class HIDTransport: @unchecked Sendable {
 
         // Pick the vendor-defined interface (0xFF00 / usage 1) among the composite HID device.
         let vendorIF = devices.first { d in
-            intProp(d, kIOHIDPrimaryUsagePageKey) == HIDTransport.usagePage &&
-            intProp(d, kIOHIDPrimaryUsageKey) == HIDTransport.usage
+            intProp(d, kIOHIDPrimaryUsagePageKey) == HIDTransport.usagePage
+                && intProp(d, kIOHIDPrimaryUsageKey) == HIDTransport.usage
         }
         guard let dev = vendorIF else { throw HIDError.deviceNotFound }
 
@@ -163,7 +163,7 @@ public final class HIDTransport: @unchecked Sendable {
             let deadline = Date().addingTimeInterval(timeout)
             while response == nil {
                 if !respLock.wait(until: deadline) {
-                    awaitingResponse = false   // stop accepting the (now stale) reply for this request
+                    awaitingResponse = false  // stop accepting the (now stale) reply for this request
                     throw HIDError.timeout
                 }
             }

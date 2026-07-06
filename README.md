@@ -76,6 +76,16 @@ per-mode LED (custom RGB / preset, live preview) and dial/button actions; **Macr
 edits scripts. Non-sandboxed (direct HID access); macOS may prompt for
 USB/Input-Monitoring on first run.
 
+## Formatting
+
+Code style is enforced with the toolchain's **`swift-format`** (config in `.swift-format`;
+4-space indent, 120 columns). No install needed — it ships with Swift 6 / Xcode.
+
+```sh
+Packaging/format.sh          # format in place
+Packaging/format.sh --lint   # check only (CI-friendly)
+```
+
 ## Status
 
 - [x] M0 — connectivity (open vendor interface + `0x56`)

@@ -64,14 +64,14 @@ public struct SetType: Equatable, Sendable, CustomStringConvertible {
 public struct KeyModifiers: OptionSet, Sendable {
     public let rawValue: UInt8
     public init(rawValue: UInt8) { self.rawValue = rawValue }
-    public static let leftCtrl   = KeyModifiers(rawValue: 0x01)
-    public static let leftShift  = KeyModifiers(rawValue: 0x02)
-    public static let leftAlt    = KeyModifiers(rawValue: 0x04)
-    public static let leftGUI    = KeyModifiers(rawValue: 0x08)
-    public static let rightCtrl  = KeyModifiers(rawValue: 0x10)
+    public static let leftCtrl = KeyModifiers(rawValue: 0x01)
+    public static let leftShift = KeyModifiers(rawValue: 0x02)
+    public static let leftAlt = KeyModifiers(rawValue: 0x04)
+    public static let leftGUI = KeyModifiers(rawValue: 0x08)
+    public static let rightCtrl = KeyModifiers(rawValue: 0x10)
     public static let rightShift = KeyModifiers(rawValue: 0x20)
-    public static let rightAlt   = KeyModifiers(rawValue: 0x40)
-    public static let rightGUI   = KeyModifiers(rawValue: 0x80)
+    public static let rightAlt = KeyModifiers(rawValue: 0x40)
+    public static let rightGUI = KeyModifiers(rawValue: 0x80)
 
     public var labels: [String] {
         var out: [String] = []
@@ -88,8 +88,8 @@ public struct KeyModifiers: OptionSet, Sendable {
 /// byte7 = sensitivity (rotary encoder). See the protocol spec §4.3.
 public struct ActionRecord: Sendable {
     public var type: SetType
-    public var payload: [UInt8]   // bytes 1..6 (6 bytes)
-    public var sense: UInt8       // byte 7
+    public var payload: [UInt8]  // bytes 1..6 (6 bytes)
+    public var sense: UInt8  // byte 7
 
     public init(_ bytes: ArraySlice<UInt8>) {
         let b = Array(bytes)
@@ -134,7 +134,9 @@ public struct ActionRecord: Sendable {
             let keys = payload[1...3].filter { $0 != 0 }.map { HIDKey.name($0) }
             return (mods + keys).joined(separator: "+")
         case .mouse:
-            if type.raw == 7 { return "Mouse move (x=\(Int8(bitPattern: payload[1])), y=\(Int8(bitPattern: payload[2])))" }
+            if type.raw == 7 {
+                return "Mouse move (x=\(Int8(bitPattern: payload[1])), y=\(Int8(bitPattern: payload[2])))"
+            }
             if type.raw == 8 { return "Mouse scroll (\(Int8(bitPattern: payload[3])))" }
             return type.description
         case .multimedia, .joypad, .specialNumber, .encoderScript, .unknown:
@@ -156,11 +158,13 @@ public enum HIDKey {
     /// A curated list for UI pickers (letters, digits, function keys, common punctuation, arrows).
     public static let common: [NamedKey] = {
         var out: [NamedKey] = [NamedKey("(none)", 0)]
-        for c in 0x04...0x1D { out.append(NamedKey(name(UInt8(c)), UInt8(c))) }   // a..z
-        for c in 0x1E...0x27 { out.append(NamedKey(name(UInt8(c)), UInt8(c))) }   // 1..0
-        for c in 0x3A...0x45 { out.append(NamedKey(name(UInt8(c)), UInt8(c))) }   // F1..F12
-        for c: UInt8 in [0x28, 0x29, 0x2B, 0x2C, 0x2D, 0x2E, 0x2F, 0x30, 0x31, 0x33, 0x34, 0x36, 0x37, 0x38,
-                         0x4F, 0x50, 0x51, 0x52] {
+        for c in 0x04...0x1D { out.append(NamedKey(name(UInt8(c)), UInt8(c))) }  // a..z
+        for c in 0x1E...0x27 { out.append(NamedKey(name(UInt8(c)), UInt8(c))) }  // 1..0
+        for c in 0x3A...0x45 { out.append(NamedKey(name(UInt8(c)), UInt8(c))) }  // F1..F12
+        for c: UInt8 in [
+            0x28, 0x29, 0x2B, 0x2C, 0x2D, 0x2E, 0x2F, 0x30, 0x31, 0x33, 0x34, 0x36, 0x37, 0x38,
+            0x4F, 0x50, 0x51, 0x52,
+        ] {
             out.append(NamedKey(name(c), c))
         }
         return out
@@ -168,8 +172,8 @@ public enum HIDKey {
 
     public static func name(_ code: UInt8) -> String {
         switch code {
-        case 0x04...0x1D: return String(UnicodeScalar(0x61 + (code - 0x04)))          // a..z
-        case 0x1E...0x26: return String(UnicodeScalar(0x31 + (code - 0x1E)))          // 1..9
+        case 0x04...0x1D: return String(UnicodeScalar(0x61 + (code - 0x04)))  // a..z
+        case 0x1E...0x26: return String(UnicodeScalar(0x31 + (code - 0x1E)))  // 1..9
         case 0x27: return "0"
         case 0x28: return "Return"
         case 0x29: return "Esc"
@@ -186,7 +190,7 @@ public enum HIDKey {
         case 0x36: return ","
         case 0x37: return "."
         case 0x38: return "/"
-        case 0x3A...0x45: return "F\(code - 0x39)"                                     // F1..F12
+        case 0x3A...0x45: return "F\(code - 0x39)"  // F1..F12
         case 0x4F: return "Right"
         case 0x50: return "Left"
         case 0x51: return "Down"
