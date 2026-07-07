@@ -269,8 +269,16 @@ struct ConfigView: View {
                         }
                     }
                     .labelsHidden().frame(width: 220)
-                    Text("Special func").frame(width: 96, alignment: .trailing)
-                    Stepper("\(model.buttonSpFuncNo)", value: $model.buttonSpFuncNo, in: 0...255).frame(width: 110)
+                    Spacer()
+                }
+                HStack {
+                    Text("Special func").frame(width: 84, alignment: .leading)
+                    Picker("", selection: $model.buttonSpFuncNo) {
+                        ForEach(SpecialFunction.all, id: \.self) { n in
+                            Text(SpecialFunction.name(n)).tag(Int(n))
+                        }
+                    }
+                    .labelsHidden().frame(width: 260)
                     Spacer()
                 }
                 actionRow("Action", icon: "bolt.fill", draft: $model.buttonDraft)

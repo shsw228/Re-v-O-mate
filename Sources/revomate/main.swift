@@ -100,7 +100,7 @@ do {
                 var parts: [String] = []
                 let script = mode.swExeScriptNo[s], sp = mode.swSpFuncNo[s]
                 if script != 0 { parts.append("script #\(script)") }
-                if sp != 0 { parts.append("spFunc \(sp)") }
+                if sp != 0 { parts.append("spFunc \(sp) (\(SpecialFunction.name(sp)))") }
                 let direct = cfg.swFunctions[m * FlashMap.swCount + s]
                 if !direct.isEmpty { parts.append("action \(direct.action.describe())") }
                 if !parts.isEmpty { anyButton = true; print("    SW\(s + 1): \(parts.joined(separator: ", "))") }
