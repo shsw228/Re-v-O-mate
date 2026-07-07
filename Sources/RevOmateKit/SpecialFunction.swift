@@ -31,3 +31,21 @@ public enum SpecialFunction {
     /// All selectable values, 0...13, for a picker.
     public static let all: [UInt8] = Array(0...maxValue)
 }
+
+/// LED preset color (`mode_led_color_no`, 0..8) names, from the firmware `LED_COLOR_TYPE_*`.
+public enum LEDColor {
+    public static let names = [
+        "Off", "White", "Red", "Orange", "Yellow", "Turquoise", "Green", "Blue", "Purple",
+    ]
+    public static func name(_ no: UInt8) -> String {
+        Int(no) < names.count ? names[Int(no)] : "color \(no)"
+    }
+}
+
+/// LED brightness level (`mode_led_brightness_level`, 0..2).
+public enum LEDBrightness {
+    public static let names = ["Normal", "Dark", "Light"]
+    public static func name(_ level: UInt8) -> String {
+        Int(level) < names.count ? names[Int(level)] : "level \(level)"
+    }
+}

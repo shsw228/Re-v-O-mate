@@ -77,10 +77,27 @@ do {
             "Base: mode=\(cfg.base.mode) ledOffTime=\(cfg.base.ledOffTimeSec)s encoderTypematic=\(cfg.base.encoderTypematic)"
         )
         print("Script header: recordCount=\(cfg.scriptHeader.recordCount) totalSize=\(cfg.scriptHeader.totalSize)")
+        // Which buttons (across modes) trigger a given script number, e.g. "M0 SW1".
+        func usedBy(_ scriptNo: Int) -> String {
+            var hits: [String] = []
+            for mm in 0..<FlashMap.modeCount {
+                for s in 0..<FlashMap.swCount where Int(cfg.modes[mm].swExeScriptNo[s]) == scriptNo {
+                    hits.append("M\(mm) \(FlashMap.buttonName(s))")
+                }
+            }
+            return hits.isEmpty ? "unused" : hits.joined(separator: ", ")
+        }
+
         for m in 0..<FlashMap.modeCount {
             let mode = cfg.modes[m]
+            let defIdx = m * FlashMap.functionsPerMode + Int(min(mode.encoderFuncNo, 3))
+            let defName = cfg.functionNames[defIdx].isEmpty ? "—" : cfg.functionNames[defIdx]
+            let led =
+                mode.ledColorFlag == 1
+                ? "custom rgb=\(mode.ledRGB.0),\(mode.ledRGB.1),\(mode.ledRGB.2)"
+                : "preset=\(LEDColor.name(mode.ledColorNo))"
             print(
-                "\n── Mode \(m) ── encoderFunc=\(mode.encoderFuncNo) LED(color=\(mode.ledColorNo) flag=\(mode.ledColorFlag) rgb=\(mode.ledRGB.0),\(mode.ledRGB.1),\(mode.ledRGB.2) bright=\(mode.ledBrightness))"
+                "\n── Mode \(m) ── default dial=[\(mode.encoderFuncNo)] \"\(defName)\"  LED(\(led), \(LEDBrightness.name(mode.ledBrightness)))"
             )
             print("  Dial functions:")
             for f in 0..<FlashMap.functionsPerMode {
@@ -120,9 +137,9 @@ do {
             for s in cfg.scripts {
                 let body = s.commands.map { $0.describe }.joined(separator: " → ")
                 let tail = s.undecodedBytes > 0 ? " [+\(s.undecodedBytes)B undecoded]" : ""
-                print(
-                    "  #\(s.number) mode=\(s.info.mode.map { "\($0)" } ?? "?") size=\(s.info.size) @0x\(String(s.info.address, radix: 16)) \"\(s.info.name)\": \(body)\(tail)"
-                )
+                let modeName = s.info.mode.map { "\($0)" } ?? "?"
+                print("  #\(s.number) [\(modeName)] \(s.info.size)B, used by: \(usedBy(s.number))")
+                print("      \(body)\(tail)")
             }
         }
 

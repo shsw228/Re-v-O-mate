@@ -123,7 +123,7 @@ final class AppModel {
         (0, 0, 0), (100, 100, 100), (100, 0, 0), (100, 45, 0), (100, 100, 0),
         (0, 100, 100), (0, 100, 0), (0, 0, 100), (100, 0, 100),
     ]
-    static let presetNames = ["Off", "White", "Red", "Orange", "Yellow", "Turquoise", "Green", "Blue", "Purple"]
+    static let presetNames = LEDColor.names  // single source of truth (RevOmateKit)
 
     var ledSwatch: Color {
         let rgb: (Double, Double, Double)

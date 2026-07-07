@@ -74,13 +74,32 @@ public struct ScriptCommand: Sendable, Identifiable {
     /// Human-readable one-liner.
     public var describe: String {
         switch opcode {
-        case .wait: return "wait \(UInt16(data[0]) << 8 | UInt16(data[1]))ms"
-        case .keyPress: return "press \(HIDKey.name(data[0]))"
-        case .keyRelease: return "release \(HIDKey.name(data[0]))"
-        case .mouseScrollUp: return "scroll up \(data[0])"
-        case .mouseScrollDown: return "scroll down \(data[0])"
-        case .mouseMove: return "mouse move \(Int8(bitPattern: data[0])),\(Int8(bitPattern: data[1]))"
-        default: return "\(opcode)" + (data.isEmpty ? "" : " (\(data.hexString))")
+        case .wait: return "Wait \(UInt16(data[0]) << 8 | UInt16(data[1])) ms"
+        case .keyPress: return "Key press: \(HIDKey.name(data[0]))"
+        case .keyRelease: return "Key release: \(HIDKey.name(data[0]))"
+        case .multiPress: return "Modifier/media press: \(HIDKey.name(data[0]))"
+        case .multiRelease: return "Modifier/media release: \(HIDKey.name(data[0]))"
+        case .mousePressL: return "Mouse Left press"
+        case .mouseReleaseL: return "Mouse Left release"
+        case .mousePressR: return "Mouse Right press"
+        case .mouseReleaseR: return "Mouse Right release"
+        case .mousePressW: return "Mouse Middle press"
+        case .mouseReleaseW: return "Mouse Middle release"
+        case .mousePressB4: return "Mouse Back(4) press"
+        case .mouseReleaseB4: return "Mouse Back(4) release"
+        case .mousePressB5: return "Mouse Fwd(5) press"
+        case .mouseReleaseB5: return "Mouse Fwd(5) release"
+        case .mouseScrollUp: return "Scroll up \(data[0])"
+        case .mouseScrollDown: return "Scroll down \(data[0])"
+        case .mouseMove: return "Mouse move X\(Int8(bitPattern: data[0])) Y\(Int8(bitPattern: data[1]))"
+        case .joyBtnPress: return "Joypad button \(data[0]) press"
+        case .joyBtnRelease: return "Joypad button \(data[0]) release"
+        case .joyHatPress: return "Joypad HAT \(data[0]) press"
+        case .joyHatRelease: return "Joypad HAT release"
+        case .joyLLever: return "Joypad L-stick \(Int8(bitPattern: data[0])),\(Int8(bitPattern: data[1]))"
+        case .joyLLeverCenter: return "Joypad L-stick center"
+        case .joyRLever: return "Joypad R-stick \(Int8(bitPattern: data[0])),\(Int8(bitPattern: data[1]))"
+        case .joyRLeverCenter: return "Joypad R-stick center"
         }
     }
 }

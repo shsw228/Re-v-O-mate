@@ -153,49 +153,40 @@ public struct NamedKey: Identifiable, Sendable, Hashable {
     public init(_ name: String, _ usage: UInt8) { self.name = name; self.usage = usage }
 }
 
-/// Minimal HID usage-id -> label map for common keys (extend as needed).
+/// HID keyboard usage-id -> key name. The table is the JIS-layout name table from the
+/// official app (`KeyCode.cs` `USB_KeyCode_Name`), so names match what the vendor tool shows.
 public enum HIDKey {
-    /// A curated list for UI pickers (letters, digits, function keys, common punctuation, arrows).
-    public static let common: [NamedKey] = {
-        var out: [NamedKey] = [NamedKey("(none)", 0)]
-        for c in 0x04...0x1D { out.append(NamedKey(name(UInt8(c)), UInt8(c))) }  // a..z
-        for c in 0x1E...0x27 { out.append(NamedKey(name(UInt8(c)), UInt8(c))) }  // 1..0
-        for c in 0x3A...0x45 { out.append(NamedKey(name(UInt8(c)), UInt8(c))) }  // F1..F12
-        for c: UInt8 in [
-            0x28, 0x29, 0x2B, 0x2C, 0x2D, 0x2E, 0x2F, 0x30, 0x31, 0x33, 0x34, 0x36, 0x37, 0x38,
-            0x4F, 0x50, 0x51, 0x52,
-        ] {
-            out.append(NamedKey(name(c), c))
-        }
-        return out
-    }()
+    public static let names: [UInt8: String] = [
+        0x04: "A", 0x05: "B", 0x06: "C", 0x07: "D", 0x08: "E", 0x09: "F", 0x0A: "G", 0x0B: "H",
+        0x0C: "I", 0x0D: "J", 0x0E: "K", 0x0F: "L", 0x10: "M", 0x11: "N", 0x12: "O", 0x13: "P",
+        0x14: "Q", 0x15: "R", 0x16: "S", 0x17: "T", 0x18: "U", 0x19: "V", 0x1A: "W", 0x1B: "X",
+        0x1C: "Y", 0x1D: "Z",
+        0x1E: "1", 0x1F: "2", 0x20: "3", 0x21: "4", 0x22: "5", 0x23: "6", 0x24: "7", 0x25: "8",
+        0x26: "9", 0x27: "0",
+        0x28: "Enter", 0x29: "ESC", 0x2A: "BS", 0x2B: "Tab", 0x2C: "Space",
+        0x2D: "-", 0x2E: "^", 0x2F: "@", 0x30: "[", 0x32: "]", 0x33: ";", 0x34: ":",
+        0x35: "ZenHan", 0x36: ",", 0x37: ".", 0x38: "/", 0x39: "CapsLock",
+        0x3A: "F1", 0x3B: "F2", 0x3C: "F3", 0x3D: "F4", 0x3E: "F5", 0x3F: "F6", 0x40: "F7",
+        0x41: "F8", 0x42: "F9", 0x43: "F10", 0x44: "F11", 0x45: "F12",
+        0x46: "PrintScreen", 0x47: "ScrollLock", 0x48: "Pause", 0x49: "Insert", 0x4A: "Home",
+        0x4B: "PageUp", 0x4C: "Delete", 0x4D: "End", 0x4E: "PageDown",
+        0x4F: "→", 0x50: "←", 0x51: "↓", 0x52: "↑",
+        0x53: "NumLock", 0x54: "Num/", 0x55: "Num*", 0x56: "Num-", 0x57: "Num+", 0x58: "NumEnter",
+        0x59: "Num1", 0x5A: "Num2", 0x5B: "Num3", 0x5C: "Num4", 0x5D: "Num5", 0x5E: "Num6",
+        0x5F: "Num7", 0x60: "Num8", 0x61: "Num9", 0x62: "Num0", 0x63: "Num.", 0x65: "Menu",
+        0x68: "F13", 0x69: "F14", 0x6A: "F15", 0x6B: "F16", 0x6C: "F17", 0x6D: "F18", 0x6E: "F19",
+        0x6F: "F20", 0x70: "F21", 0x71: "F22", 0x72: "F23", 0x73: "F24",
+        0x87: "BackSL", 0x88: "k/Hira", 0x89: "￥", 0x8A: "変換", 0x8B: "無変換",
+        0xE0: "Ctrl L", 0xE1: "Shift L", 0xE2: "Alt L", 0xE3: "Win L",
+        0xE4: "Ctrl R", 0xE5: "Shift R", 0xE6: "Alt R", 0xE7: "Win R",
+    ]
 
     public static func name(_ code: UInt8) -> String {
-        switch code {
-        case 0x04...0x1D: return String(UnicodeScalar(0x61 + (code - 0x04)))  // a..z
-        case 0x1E...0x26: return String(UnicodeScalar(0x31 + (code - 0x1E)))  // 1..9
-        case 0x27: return "0"
-        case 0x28: return "Return"
-        case 0x29: return "Esc"
-        case 0x2A: return "Backspace"
-        case 0x2B: return "Tab"
-        case 0x2C: return "Space"
-        case 0x2D: return "-"
-        case 0x2E: return "="
-        case 0x2F: return "["
-        case 0x30: return "]"
-        case 0x31: return "\\"
-        case 0x33: return ";"
-        case 0x34: return "'"
-        case 0x36: return ","
-        case 0x37: return "."
-        case 0x38: return "/"
-        case 0x3A...0x45: return "F\(code - 0x39)"  // F1..F12
-        case 0x4F: return "Right"
-        case 0x50: return "Left"
-        case 0x51: return "Down"
-        case 0x52: return "Up"
-        default: return "0x\(String(code, radix: 16))"
-        }
+        if code == 0 { return "(none)" }
+        return names[code] ?? String(format: "0x%02X", code)
     }
+
+    /// Ordered list for UI pickers: "(none)" then every named key by usage id.
+    public static let common: [NamedKey] =
+        [NamedKey("(none)", 0)] + names.sorted { $0.key < $1.key }.map { NamedKey($1, $0) }
 }
