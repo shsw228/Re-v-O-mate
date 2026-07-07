@@ -103,7 +103,9 @@ do {
                 if sp != 0 { parts.append("spFunc \(sp) (\(SpecialFunction.name(sp)))") }
                 let direct = cfg.swFunctions[m * FlashMap.swCount + s]
                 if !direct.isEmpty { parts.append("action \(direct.action.describe())") }
-                if !parts.isEmpty { anyButton = true; print("    SW\(s + 1): \(parts.joined(separator: ", "))") }
+                if !parts.isEmpty {
+                    anyButton = true; print("    \(FlashMap.buttonName(s)): \(parts.joined(separator: ", "))")
+                }
             }
             if !anyButton { print("    (none assigned)") }
         }

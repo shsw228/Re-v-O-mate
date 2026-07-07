@@ -35,6 +35,15 @@ public enum FlashMap {
     public static let encoderScriptCount = 3
     public static let scriptMax = 200
 
+    /// SW index (0-based) of the dial's push button. The other 10 are the physical
+    /// buttons SW1..SW10. Firmware `ENCODER_BUTTON_ID` / C# treats this one specially.
+    public static let encoderButtonIndex = 10
+
+    /// Display name for a 0-based SW index: SW1..SW10, and "Dial press" for the encoder button.
+    public static func buttonName(_ index: Int) -> String {
+        index == encoderButtonIndex ? "Dial press" : "SW\(index + 1)"
+    }
+
     /// Address of a script-info record (1-based, matching the wire convention).
     public static func scriptInfoAddress(number: Int) -> UInt32 {
         precondition(number >= 1 && number <= scriptMax)

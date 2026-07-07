@@ -250,7 +250,9 @@ struct ConfigView: View {
         GroupBox(label: Label("Edit button", systemImage: "circle.grid.3x3.fill")) {
             VStack(alignment: .leading, spacing: 8) {
                 Picker("", selection: $model.selectedButton) {
-                    ForEach(0..<FlashMap.swCount, id: \.self) { Text("SW\($0 + 1)").tag($0) }
+                    ForEach(0..<FlashMap.swCount, id: \.self) {
+                        Text($0 == FlashMap.encoderButtonIndex ? "Dial⊙" : "SW\($0 + 1)").tag($0)
+                    }
                 }
                 .pickerStyle(.segmented).labelsHidden()
                 HStack {
@@ -503,7 +505,7 @@ struct MacrosView: View {
         guard let cfg = model.config else { return "" }
         for m in 0..<FlashMap.modeCount {
             for s in 0..<FlashMap.swCount where Int(cfg.modes[m].swExeScriptNo[s]) == number {
-                return " (M\(m) SW\(s + 1))"
+                return " (M\(m) \(FlashMap.buttonName(s)))"
             }
         }
         return ""
